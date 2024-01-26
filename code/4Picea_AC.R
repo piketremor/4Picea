@@ -46,7 +46,12 @@ print(check,n=30)
 # they do not sum to 1, range from 1.01-1.18
 
 #############################################
-BA.larger <- picea.summary%>%
-  basal.area.larger(DBH.2023, tpa, complete = FALSE)
+spruce <- picea%>%
+  mutate(basal.area = picea$DBH.2023^2*0.005454)%>%
+  mutate(bapa = basal.area*10)%>%
+  group_by(uid)%>%
+  arrange(desc(DBH.2023),.by_group = TRUE)%>%
+  mutate(bal = lag(cumsum(bapa)))
+spruce$bal[is.na(spruce$bal)] <- 0
 
 
