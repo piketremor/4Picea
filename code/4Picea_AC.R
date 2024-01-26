@@ -1,7 +1,4 @@
-install.packages("devtools")
-install.packages("G:/My Drive/MEForLab",
-                 repos = NULL,
-                 type = "source")
+devtools::install_github("piketremor/MEForLab")
 library(MEForLab)
 library(devtools)
 library(dplyr)
@@ -30,6 +27,7 @@ plot(picea.summary$bapa,picea.summary$tpa)
 
 # calculate species IVs
 picea.species <- picea%>%
+  filter(.,StatusCode.2023=="1")%>%
   group_by(uid,Species)%>%
   summarize(sp.bapa = sum(DBH.2023^2*.005454*tree.factor),
             sp.tpa = sum(tree.factor))%>%
@@ -38,7 +36,7 @@ picea.species <- picea%>%
   mutate(prop.tpa = sp.tpa/tpa)%>%
   mutate(prop.ba = sp.bapa/bapa)%>%
   mutate(IV = (prop.tpa+prop.ba)/2)
-view(picea.species)
+#view(picea.species)
 
 # Double check, all plots should sum to 1
 check <- picea.species%>%
