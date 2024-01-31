@@ -1,8 +1,12 @@
+<<<<<<< HEAD
 #install.packages("devtools")
 #install.packages("G:/My Drive/MEForLab",
                  #repos = NULL,
                  #type = "source")
 
+=======
+devtools::install_github("piketremor/MEForLab")
+>>>>>>> af2e129826e8ebef0dcf0935414548b8b2b43c71
 library(MEForLab)
 library(devtools)
 library(dplyr)
@@ -40,6 +44,10 @@ picea.species <- picea%>%
   mutate(prop.tpa = sp.tpa/tpa)%>%
   mutate(prop.ba = sp.bapa/bapa)%>%
   mutate(IV = (prop.tpa+prop.ba)/2)
+<<<<<<< HEAD
+=======
+#view(picea.species)
+>>>>>>> af2e129826e8ebef0dcf0935414548b8b2b43c71
 
 # Double check, all plots should sum to 1
 check <- picea.species%>%
@@ -49,6 +57,7 @@ print(check,n=30)
 # they sum to 1, good
 
 #############################################
+<<<<<<< HEAD
 
 #imputing tree heights
 library(lme4)
@@ -81,6 +90,15 @@ tree_predict$Species[is.na(tree_predict$Species)] <- "OS"
 ### getting an error here, not sure why
 tree_predict["vol"] <- 
   mapply(vol_calc,SPP=tree_predict$Species,DBH=tree_predict$DBH.2023,HT=tree_predict$fin.ht)
+=======
+spruce <- picea%>%
+  mutate(basal.area = picea$DBH.2023^2*0.005454)%>%
+  mutate(bapa = basal.area*10)%>%
+  group_by(uid)%>%
+  arrange(desc(DBH.2023),.by_group = TRUE)%>%
+  mutate(bal = lag(cumsum(bapa)))
+spruce$bal[is.na(spruce$bal)] <- 0
+>>>>>>> af2e129826e8ebef0dcf0935414548b8b2b43c71
 
 
 xyplot(vol~DBH|SPP,data=tree_predict)
