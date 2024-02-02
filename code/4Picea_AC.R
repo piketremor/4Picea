@@ -11,17 +11,17 @@ library(forcats)
 library(tidyverse)
 
 setwd("G:/Shared drives/4Picea/4Picea/raw")
-picea <- read.csv("4Picea.Data.csv")
+picea <- read.csv("4Picea.csv")
 
-picea$DBH.2023 <- as.numeric(picea$DBH.2023)
-picea$DBH.2023[is.na(picea$DBH.2023)] <- 0
-picea$uid <- paste0(picea$Block,".",picea$Plot)
+picea$DBH.23 <- as.numeric(picea$DBH.23)
+picea$DBH.23[is.na(picea$DBH.23)] <- 0
+picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 
 picea$tree.factor <- 10
 
 picea.summary <- picea%>%
-  filter(.,StatusCode.2023=="1")%>%
-  mutate(tree.ba = DBH.2023^2*0.005454)%>%
+  filter(.,STATUS.23=="1")%>%
+  mutate(tree.ba = DBH.23^2*0.005454)%>%
   group_by(uid)%>%
   summarize(bapa = sum(tree.ba*tree.factor), # tree.factor is your expansion factor
             tpa = sum(tree.factor))
@@ -31,9 +31,9 @@ plot(picea.summary$bapa,picea.summary$tpa) # most plots are between 20 and 140 b
 ######################### calculate species IVs
 
 picea.species <- picea%>%
-  filter(.,StatusCode.2023=="1")%>%
-  group_by(uid,Species)%>%
-  summarize(sp.bapa = sum(DBH.2023^2*.005454*tree.factor),
+  filter(.,STATUS.23=="1")%>%
+  group_by(uid,SPP)%>%
+  summarize(sp.bapa = sum(DBH.23^2*.005454*tree.factor),
             sp.tpa = sum(tree.factor))%>%
   ungroup()%>%
   left_join(.,picea.summary)%>%
@@ -54,32 +54,32 @@ library(lme4)
 
 # select for SITEid, PLOTid, and TREE to be in tree locations dataset
 tree_species <- picea%>%
-  select(Block, Plot, Tree, Species)
+  select(BLOCK, PLOT, TREE, SPP)
 
 # filter for the living trees
-picea <- filter(picea, StatusCode.2023 == 1)
+picea <- filter(picea, STATUS.23 == 1)
 
 # filter for heights above 0
-height.frame <- filter(picea, HT.2023 > 0)
+height.frame <- filter(picea, HT.23 > 0)
 
 # create model, Henrikson Equation (be wary of tree > 5" DBH)
-ht.lm <- lmer(HT.2023 ~ log(DBH.2023) + (1 | Species/Plot/Block), data = height.frame) #error means that model is likely overfitted
+ht.lm <- lmer(HT.23 ~ log(DBH.23) + (1 | SPP/PLOT/BLOCK), data = height.frame) #error means that model is likely overfitted
 summary(ht.lm)
 
 # predict heights
 tree_predict <- picea %>% 
   mutate(PRD_HT = predict(ht.lm, picea, re.form = NULL, allow.new.levels = TRUE))
 
-tree_predict$HT.2023[is.na(tree_predict$HT.2023)] <- 0
+tree_predict$HT.23[is.na(tree_predict$HT.23)] <- 0
 tree_predict$PRD_HT[is.na(tree_predict$PRD_HT)] <- 0
-tree_predict$fin.ht <- ifelse(tree_predict$HT.2023<1,tree_predict$PRD_HT,tree_predict$HT.2023)
+tree_predict$fin.ht <- ifelse(tree_predict$HT.23<1,tree_predict$PRD_HT,tree_predict$HT.23)
 tree_predict$fin.ht <- ifelse(tree_predict$fin.ht<0,0,tree_predict$fin.ht)
 
-tree_predict$Species[is.na(tree_predict$Species)] <- "OS"
+tree_predict$SPP[is.na(tree_predict$SPP)] <- "OS"
 
 ## getting an error here, not sure why
 tree_predict["vol"] <- 
-  mapply(vol.calc,SPP=tree_predict$Species,DBH=tree_predict$DBH.2023,HT=tree_predict$fin.ht)
+  mapply(vol.calc,SPP=tree_predict$SPP,DBH=tree_predict$DBH.23,HT=tree_predict$fin.ht)
 
 xyplot(vol~DBH|SPP,data=tree_predict)
 xyplot(fin.ht~DBH|SPP,data=tree_predict)
@@ -87,13 +87,13 @@ xplot(fin.ht~DBH,data=tree_predict)
 
 ######################## basal area larger (bal)
 spruce.bal <- picea%>%
-  mutate(basal.area = picea$DBH.2023^2*0.005454)%>%
+  mutate(basal.area = picea$DBH.23^2*0.005454)%>%
   mutate(bapa = basal.area*10)%>%
   group_by(uid)%>%
-  arrange(desc(DBH.2023),.by_group = TRUE)%>%
+  arrange(desc(DBH.23),.by_group = TRUE)%>%
   mutate(bal = lag(cumsum(bapa)))
 spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
-xyplot(bal~DBH.2023|Species,data=spruce.bal)
+xyplot(bal~DBH.23|SPP,data=spruce.bal)
 
 ###################### height larger (htl)
 spruce.htl <- tree_predict%>%
@@ -102,11 +102,11 @@ group_by(uid)%>%
   mutate(htl = lag(cumsum(fin.ht)))
 spruce.htl$htl[is.na(spruce.htl$htl)] <- 0
 
-xyplot(htl~fin.ht|Species,data=spruce.htl)
+xyplot(htl~fin.ht|SPP,data=spruce.htl)
 
 ###################### ht/diameter ratios
 ht_dbh <- tree_predict %>% 
-  mutate(ht_dbh = fin.ht/DBH.2023)
+  mutate(ht_dbh = fin.ht/DBH.23)
 
 ###################### vicary SI, error need to enter OS and NS
 #tree_predict["SI"] <- 
@@ -114,7 +114,7 @@ ht_dbh <- tree_predict %>%
 
 
 ##################### ANOVA: does diameter vary by species (one-way)
-aov.1<- aov(DBH.2023~Species, data=picea)
+aov.1<- aov(DBH.23~SPP, data=picea)
 summary(aov.1)
 
 TukeyHSD(aov.1)
@@ -128,39 +128,39 @@ plot(aov.1, 2)
 ############### ANOVA: does diameter vary by species grouped by id (two-way)
 picea <- picea%>%
   unite(ID, 
-        Block, 
-        Plot,
+        BLOCK, 
+        PLOT,
         remove = FALSE,
         sep = ".")
 
-aov.2 <- aov(DBH.2023~Species+ID,data=picea)
+aov.2 <- aov(DBH.23~SPP+ID,data=picea)
 summary(aov.2)
 
 # if you were looking for an interaction use formula below
 #aov.3 <- aov(DBH.2023) ~ Species * id, data = my_data)
 
-group_by(picea, Species, ID) %>%
+group_by(picea, SPP, ID) %>%
   summarise(
     count = n(),
-    mean = mean(DBH.2023, na.rm = TRUE),
-    sd = sd(DBH.2023, na.rm = TRUE)
+    mean = mean(DBH.23, na.rm = TRUE),
+    sd = sd(DBH.23, na.rm = TRUE)
   )
 
 # pairwise comparisons between groups
-TukeyHSD(aov.2, which = "Species")
+TukeyHSD(aov.2, which = "SPP")
 TukeyHSD(aov.2, which = "ID")
 
 #Homogeneity of variances
 plot(aov.2, 1)
 
 library(car) #if p-value is <.05 then var between groups is significantly different, don't want that
-leveneTest(DBH.2023 ~ Species*ID, data = picea)
+leveneTest(DBH.23 ~ SPP*ID, data = picea)
 
 #Normality
 plot(aov.2, 2)
 
 ############## Matt Russell ANOVA Textbook Exercises
-p.diameter <- ggplot(picea, aes(factor(Species), DBH.2023)) + 
+p.diameter <- ggplot(picea, aes(factor(SPP), DBH.23)) + 
   geom_boxplot()+
   ylab("Diameter (inches)") +
   xlab("Species")
@@ -170,7 +170,7 @@ p.diameter
 #picea <- picea %>% 
 #mutate(Species.fact = as.factor(Species))
 
-picea.aov <- lm(DBH.2023 ~ Species, data = picea)
+picea.aov <- lm(DBH.23 ~ SPP, data = picea)
 
 anova(picea.aov)
 
@@ -184,22 +184,22 @@ anova(picea.aov)
 #(p.diag$p.resid | p.diag$p.stdresid) /
 #(p.diag$p.srstdresid | p.diag$p.cooks)
 
-pairwise.t.test(picea$DBH.2023, picea$Species, p.adj = "bonferroni")
+pairwise.t.test(picea$DBH.23, picea$SPP, p.adj = "bonferroni")
 
 library(agricolae)
-lsd.picea <- LSD.test(picea.aov, "Species", p.adj = "bonferroni")
+lsd.picea <- LSD.test(picea.aov, "SPP", p.adj = "bonferroni")
 lsd.picea$groups
 
 picea_summ <- picea %>% 
-  group_by(Species)  %>%  
+  group_by(SPP)  %>%  
   summarize(n.diameter = n(),
-            mean.diameter = mean(DBH.2023),
-            sd.diameter = sd(DBH.2023))
+            mean.diameter = mean(DBH.23),
+            sd.diameter = sd(DBH.23))
 picea_summ
 
 limits <- aes(ymax = mean.diameter + sd.diameter, 
               ymin = mean.diameter - sd.diameter)
-p.diameter <- ggplot(picea_summ, aes(Species, mean.diameter)) +
+p.diameter <- ggplot(picea_summ, aes(SPP, mean.diameter)) +
   geom_bar(stat = "identity") +
   geom_errorbar(limits, width = 0.25) +
   ylab("Diameter (Inches") +
@@ -209,15 +209,15 @@ p.diameter <- ggplot(picea_summ, aes(Species, mean.diameter)) +
 p.diameter #plot doesn't work, not sure why
 
 # two way diameter + species + ID
-ggplot(picea, aes(Species, DBH.2023, fill = ID)) +
+ggplot(picea, aes(SPP, DBH.23, fill = ID)) +
   geom_boxplot() +
   ylab("Diameter (inches)") +
   xlab("Species")
 
-picea.aov2 <- lm(DBH.2023 ~ Species * ID, data = picea)
+picea.aov2 <- lm(DBH.23 ~ SPP * ID, data = picea)
 anova(picea.aov2)
 
-pairwise.t.test(picea$DBH.2023, picea$ID, p.adj = "bonferroni")
+pairwise.t.test(picea$DBH.23, picea$ID, p.adj = "bonferroni")
 
 lsd.picea2 <- LSD.test(picea.aov2, "ID", p.adj = "bonferroni")
 lsd.picea2$groups
@@ -225,7 +225,7 @@ lsd.picea2$groups
 picea_summ2 <- picea %>% 
   group_by(ID) %>%  
   summarize(n.diameter = n(),
-            mean.diameter = mean(DBH.2023),
+            mean.diameter = mean(DBH.23),
             sd.diameter = sd(DBH.2023)) %>% 
   mutate(se.diameter = sd.diameter/sqrt(n.diameter))
 
@@ -234,15 +234,15 @@ picea_summ2
 ############## Matt Russell Linear Mixed Models Textbook Exercises
 
 # generalized linear regression model for DBH + HT
-ggplot(data=tree_predict, aes(x=DBH.2023, y=fin.ht)) +
+ggplot(data=tree_predict, aes(x=DBH.23, y=fin.ht)) +
   geom_point() +
   geom_smooth(method = "lm")
 
-cor <- cor.test(tree_predict$DBH.2023, tree_predict$fin.ht, 
+cor <- cor.test(tree_predict$DBH.23, tree_predict$fin.ht, 
                 method = "pearson")
 cor #high correlation
 
-lmodel <- lm(sqrt(DBH.2023) ~ sqrt(fin.ht), data = tree_predict)
+lmodel <- lm(sqrt(DBH.23) ~ sqrt(fin.ht), data = tree_predict)
 summary(lmodel)
 
 AIC(lmodel)
@@ -252,23 +252,23 @@ library(nlme)
 library(lme4)
 
 # random effects on intercept
-n_distinct(tree_predict$Species)
+n_distinct(tree_predict$SPP)
 
-ggplot(data=tree_predict, aes(x=DBH.2023, y=fin.ht)) +
+ggplot(data=tree_predict, aes(x=DBH.23, y=fin.ht)) +
   geom_point() +
-  facet_wrap(~Species, ncol = 3) +
+  facet_wrap(~SPP, ncol = 3) +
   labs(x = "Diameter at breast height (inches)",
        y = "Height (feet)")
 
-picea.lme <- lmer(fin.ht ~ DBH.2023 + (1 | Species),
+picea.lme <- lmer(fin.ht ~ DBH.23 + (1 | SPP),
                     data = tree_predict)
 summary(picea.lme)
 ranef(picea.lme)
 
-ggplot(tree_predict, aes(DBH.2023, fin.ht)) +
+ggplot(tree_predict, aes(DBH.23, fin.ht)) +
   geom_point(size = 0.2) +
   geom_line(aes(y = predict(picea.lme), 
-                group = Species, 
+                group = SPP, 
                 color = Species)) +
   labs(x = "Diameter at breast height (inches)",
        y = "Height (feet)")
@@ -288,31 +288,31 @@ tree_predict %>%
   top_n(10)
 
 #random effects on slope, can introduce model complexity
-picea.lme2 <- lmer(fin.ht ~ 1 + DBH.2023 + (1 + DBH.2023 | Species),
+picea.lme2 <- lmer(fin.ht ~ 1 + DBH.23 + (1 + DBH.23 | SPP),
                      data = tree_predict) 
 summary(picea.lme2)
 
-ggplot(tree_predict, aes(DBH.2023, fin.ht)) +
+ggplot(tree_predict, aes(DBH.23, fin.ht)) +
   geom_point(size = 0.2) +
   geom_line(aes(y = predict(picea.lme2), 
-                group = Species, 
-                color = Species)) +
+                group = SPP, 
+                color = SPP)) +
   labs(x = "Diameter at breast height (inches)",
        y = "Height (feet)")
 
 # nested random effects on intercept
 tree_predict <- tree_predict%>%
   unite(ID, 
-        Block, 
-        Plot,
+        BLOCK, 
+        PLOT,
         remove = FALSE,
         sep = ".")
 
 n_distinct(tree_predict$ID)
 
-tree_predict %>% 
+tree_predict %>% #error found, doesn't work
   filter(ID == c(B3.2, B3.5)) %>% 
-  ggplot(aes(DBH.2023, fin.ht)) +
+  ggplot(aes(DBH.23, fin.ht)) +
   geom_point() +
   facet_wrap(~ID) +
   labs(title = "Spruce at PEF",
@@ -320,7 +320,7 @@ tree_predict %>%
        x = "Diameter at breast height (inches)",
        y = "Height (feet)")
 
-picea.lme3 <- lmer(fin.ht ~ DBH.2023 + (1 | Species/ID),
+picea.lme3 <- lmer(fin.ht ~ DBH.23 + (1 | SPP/ID),
                      data = tree_predict)
 summary(picea.lme3)
 ranef.lme3 <- ranef(picea.lme3)
