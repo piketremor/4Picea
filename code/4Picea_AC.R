@@ -159,6 +159,52 @@ leveneTest(DBH.23 ~ SPP*ID, data = picea)
 #Normality
 plot(aov.2, 2)
 
+##################### ANOVA: does diameter vary by pure vs mixed (one-way)
+aov.3<- aov(DBH.23~CODE, data=picea)
+summary(aov.3)
+
+TukeyHSD(aov.3)
+
+#Homogeneity of variances
+plot(aov.3, 1)
+
+#Normality
+plot(aov.3, 2)
+
+################# ANOVA: does diameter vary by mixed vs pure grouped by ID (two-way)
+picea <- picea%>%
+  unite(ID, 
+        BLOCK, 
+        PLOT,
+        remove = FALSE,
+        sep = ".")
+
+aov.4 <- aov(DBH.23~CODE+ID,data=picea)
+summary(aov.4)
+
+# if you were looking for an interaction use formula below
+#aov.3 <- aov(DBH.2023) ~ CODE * id, data = my_data)
+
+group_by(picea, CODE, ID) %>%
+  summarise(
+    count = n(),
+    mean = mean(DBH.23, na.rm = TRUE),
+    sd = sd(DBH.23, na.rm = TRUE)
+  )
+
+# pairwise comparisons between groups
+TukeyHSD(aov.4, which = "CODE")
+TukeyHSD(aov.4, which = "ID")
+
+#Homogeneity of variances
+plot(aov.4, 1)
+
+library(car) #if p-value is <.05 then var between groups is significantly different, don't want that
+leveneTest(DBH.23 ~ CODE*ID, data = picea)
+
+#Normality
+plot(aov.4, 2)
+
 ############## Matt Russell ANOVA Textbook Exercises
 p.diameter <- ggplot(picea, aes(factor(SPP), DBH.23)) + 
   geom_boxplot()+
@@ -208,7 +254,30 @@ p.diameter <- ggplot(picea_summ, aes(SPP, mean.diameter)) +
   scale_y_continuous(limits = c(0, 0.3))
 p.diameter #plot doesn't work, not sure why
 
-# two way diameter + species + ID
+# one way ANOVA diameter x species mix
+p.diameter <- ggplot(picea, aes(factor(CODE), DBH.23)) + 
+  geom_boxplot()+
+  ylab("Diameter (inches)") +
+  xlab("Species Mix")
+p.diameter
+piceamix.aov <- lm(DBH.23 ~ CODE, data = picea)
+
+anova(piceamix.aov)
+
+pairwise.t.test(picea$DBH.23, picea$CODE, p.adj = "bonferroni")
+
+library(agricolae)
+lsd.picea <- LSD.test(piceamix.aov, "CODE", p.adj = "bonferroni")
+lsd.picea$groups
+
+picea_summ2 <- picea %>% 
+  group_by(CODE)  %>%  
+  summarize(n.diameter = n(),
+            mean.diameter = mean(DBH.23),
+            sd.diameter = sd(DBH.23))
+picea_summ2
+
+# two way diameter x species + ID
 ggplot(picea, aes(SPP, DBH.23, fill = ID)) +
   geom_boxplot() +
   ylab("Diameter (inches)") +
@@ -327,5 +396,12 @@ ranef.lme3 <- ranef(picea.lme3)
 plot(ranef.lme3)
 
 AIC(lmodel, picea.lme, picea.lme3)
+
+
+
+
+
+
+
 
 
