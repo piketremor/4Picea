@@ -81,9 +81,9 @@ tree_predict$SPP[is.na(tree_predict$SPP)] <- "OS"
 tree_predict["vol"] <- 
   mapply(vol.calc,SPP=tree_predict$SPP,DBH=tree_predict$DBH.23,HT=tree_predict$fin.ht)
 
-xyplot(vol~DBH|SPP,data=tree_predict)
-xyplot(fin.ht~DBH|SPP,data=tree_predict)
-xplot(fin.ht~DBH,data=tree_predict)
+xyplot(vol~DBH.23|SPP,data=tree_predict)
+xyplot(fin.ht~DBH.23|SPP,data=tree_predict)
+xplot(fin.ht~DBH.23,data=tree_predict)
 
 ######################## basal area larger (bal)
 spruce.bal <- picea%>%
@@ -295,7 +295,7 @@ picea_summ2 <- picea %>%
   group_by(ID) %>%  
   summarize(n.diameter = n(),
             mean.diameter = mean(DBH.23),
-            sd.diameter = sd(DBH.2023)) %>% 
+            sd.diameter = sd(DBH.23)) %>% 
   mutate(se.diameter = sd.diameter/sqrt(n.diameter))
 
 picea_summ2
@@ -311,8 +311,9 @@ cor <- cor.test(tree_predict$DBH.23, tree_predict$fin.ht,
                 method = "pearson")
 cor #high correlation
 
-lmodel <- lm(sqrt(DBH.23) ~ sqrt(fin.ht), data = tree_predict)
+lmodel <- lm(HT.23 ~ DBH.23+SPP, data = picea)
 summary(lmodel)
+
 
 AIC(lmodel)
 
@@ -357,6 +358,8 @@ tree_predict %>%
   top_n(10)
 
 #random effects on slope, can introduce model complexity
+#predicting HTs using model need to use heights from intital dataset
+#also you have DBH.23 as a mixed and random effect, check Matts code
 picea.lme2 <- lmer(fin.ht ~ 1 + DBH.23 + (1 + DBH.23 | SPP),
                      data = tree_predict) 
 summary(picea.lme2)
@@ -398,10 +401,155 @@ plot(ranef.lme3)
 AIC(lmodel, picea.lme, picea.lme3)
 
 
+#################################
+
+library(lme4)
+mixer <- lmer(HT.23~log(DBH.23+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
+mixer2 <- lmer(HT.23~log(DBH.23+0.1)+(1|SPP/PLOT/BLOCK), data=picea)
+AIC(mixer2, mixer)
+
+library(nlme)
+mixer3 <- lme(HT.23~log(DBH.23+0.1)+SPP, random=~1|PLOT/BLOCK, data=picea, na.action=na.omit)
+AIC(mixer3)
+summary(mixer3)
+picea$BLOCK <- as.factor(picea$BLOCK)
+picea$PLOT <- as.factor(picea$PLOT)
 
 
+ht.mod2 <- nlme(HT.23~4.5+exp(a+(b/DBH.23+1)),
+                data=picea,
+                fixed=a+b~1,
+                random=a+b~1|BLOCK/PLOT/SPP,
+                na.action=na.pass,verbose=T,
+                start=c(a=4.5, b=-6),
+                control=nlmeControl(returnObject = TRUE,msMaxIter = 10000,maxIter = 5000))
+summary(ht.mod2)
+
+picea$wykoff.ht <- predict(ht.mod2,picea)
+xyplot(final.ht~DBH.23|SPP,data=picea)
+picea$HT.23[is.na(picea$HT.23)] <- 0
+picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$wykoff.ht)
+
+library(MEForLab)
+
+picea <- picea%>%
+  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
+xyplot(vol~DBH.23|SPP,data=picea)
+
+##################### ANOVA: does volume vary by species (one-way)
+p.vol <- ggplot(picea, aes(factor(SPP), vol)) + 
+  geom_boxplot()+
+  ylab("Volume (cubic feet)") +
+  xlab("Species")
+p.vol
 
 
+#Anova
+vol.aov.1<- aov(vol~SPP, data=picea)
+summary(vol.aov.1)
 
+TukeyHSD(vol.aov.1)
 
+#Homogeneity of variances
+plot(vol.aov.1, 1)
 
+#Normality
+plot(vol.aov.1, 2)
+
+#or can do similar calculations following Matt Russel's Method
+vol.aov.2 <- lm(vol ~ SPP, data = picea)
+
+anova(vol.aov.2)
+
+pairwise.t.test(picea$vol, picea$SPP, p.adj = "bonferroni")
+
+library(agricolae)
+lsd.picea <- LSD.test(vol.aov.2, "SPP", p.adj = "bonferroni")
+lsd.picea$groups
+
+vol.summary <- picea %>% 
+  group_by(SPP)  %>%  
+  summarize(n.vol = n(),
+            mean.vol = mean(vol),
+            sd.vol = sd(vol))
+vol.summary
+
+limits <- aes(ymax = mean.vol + sd.vol, 
+              ymin = mean.vol - sd.vol)
+p.vol <- ggplot(vol.summary, aes(SPP, mean.vol)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(limits, width = 0.25) +
+  ylab("Volume (Cubic Feet") +
+  xlab("Species") +
+  geom_text(aes(label = c("a", "b", "c", "c", "c", "c")), vjust = -6) +
+  scale_y_continuous(limits = c(0, 5))
+p.vol
+
+##################### ANOVA: does vol vary by pure vs mixed (one-way)
+vol.aov.3<- aov(vol~CODE, data=picea)
+summary(vol.aov.3)
+
+TukeyHSD(vol.aov.3)
+
+#Homogeneity of variances
+plot(vol.aov.3, 1)
+
+#Normality
+plot(vol.aov.3, 2)
+
+################# ANOVA: does diameter vary by mixed vs pure grouped by ID (two-way)
+picea <- picea%>%
+  unite(ID, 
+        BLOCK, 
+        PLOT,
+        remove = FALSE,
+        sep = ".")
+
+vol.aov.4 <- aov(vol~CODE+ID,data=picea)
+summary(vol.aov.4)
+
+# if you were looking for an interaction use formula below
+#aov.3 <- aov(DBH.2023) ~ CODE * id, data = my_data)
+
+group_by(picea, CODE, ID) %>%
+  summarise(
+    count = n(),
+    mean = mean(vol, na.rm = TRUE),
+    sd = sd(vol, na.rm = TRUE)
+  )
+
+# pairwise comparisons between groups
+TukeyHSD(vol.aov.4, which = "CODE")
+TukeyHSD(vol.aov.4, which = "ID")
+
+#Homogeneity of variances
+plot(vol.aov.4, 1)
+
+library(car) #if p-value is <.05 then var between groups is significantly different, don't want that
+leveneTest(vol ~ CODE*ID, data = picea)
+
+#Normality
+plot(vol.aov.4, 2)
+
+#or follow Matt Russels way for ANOVA
+p2.vol <- ggplot(picea, aes(factor(CODE), vol)) + 
+  geom_boxplot()+
+  ylab("Volume (cubic feet)") +
+  xlab("Species Mix")
+p2.vol
+volmix.aov <- lm(vol ~ CODE, data = picea)
+
+anova(volmix.aov)
+
+pairwise.t.test(picea$vol, picea$CODE, p.adj = "bonferroni")
+
+library(agricolae)
+lsd.vol <- LSD.test(volmix.aov, "CODE", p.adj = "bonferroni")
+lsd.vol$groups
+
+vol.summary <- picea %>% 
+  group_by(CODE)  %>%  
+  summarize(n.vol = n(),
+            mean.vol = mean(vol),
+            sd.vol = sd(vol))
+vol.summary
