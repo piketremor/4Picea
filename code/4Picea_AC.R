@@ -52,7 +52,7 @@ print(check,n=30) # they sum to 1, good
 ###################### imputing tree heights
 library(lme4)
 
-# select for SITEid, PLOTid, and TREE to be in tree locations dataset
+# select for BLOCK, PLOT, TREE, SPP from picea dataset
 tree_species <- picea%>%
   select(BLOCK, PLOT, TREE, SPP)
 
@@ -77,7 +77,6 @@ tree_predict$fin.ht <- ifelse(tree_predict$fin.ht<0,0,tree_predict$fin.ht)
 
 tree_predict$SPP[is.na(tree_predict$SPP)] <- "OS"
 
-## getting an error here, not sure why
 tree_predict["vol"] <- 
   mapply(vol.calc,SPP=tree_predict$SPP,DBH=tree_predict$DBH.23,HT=tree_predict$fin.ht)
 
@@ -104,7 +103,7 @@ spruce.htl$htl[is.na(spruce.htl$htl)] <- 0
 
 xyplot(htl~fin.ht|SPP,data=spruce.htl)
 
-###################### ht/diameter ratios
+###################### height/diameter ratios
 ht_dbh <- tree_predict %>% 
   mutate(ht_dbh = fin.ht/DBH.23)
 
@@ -125,7 +124,7 @@ plot(aov.1, 1)
 #Normality
 plot(aov.1, 2)
 
-############### ANOVA: does diameter vary by species grouped by id (two-way)
+############### ANOVA: does diameter vary by species grouped by id, plot level (two-way)
 picea <- picea%>%
   unite(ID, 
         BLOCK, 
@@ -170,40 +169,6 @@ plot(aov.3, 1)
 
 #Normality
 plot(aov.3, 2)
-
-################# ANOVA: does diameter vary by mixed vs pure grouped by ID (two-way)
-picea <- picea%>%
-  unite(ID, 
-        BLOCK, 
-        PLOT,
-        remove = FALSE,
-        sep = ".")
-
-aov.4 <- aov(DBH.23~CODE+ID,data=picea)
-summary(aov.4)
-
-# if you were looking for an interaction use formula below
-#aov.3 <- aov(DBH.2023) ~ CODE * id, data = my_data)
-
-group_by(picea, CODE, ID) %>%
-  summarise(
-    count = n(),
-    mean = mean(DBH.23, na.rm = TRUE),
-    sd = sd(DBH.23, na.rm = TRUE)
-  )
-
-# pairwise comparisons between groups
-TukeyHSD(aov.4, which = "CODE")
-TukeyHSD(aov.4, which = "ID")
-
-#Homogeneity of variances
-plot(aov.4, 1)
-
-library(car) #if p-value is <.05 then var between groups is significantly different, don't want that
-leveneTest(DBH.23 ~ CODE*ID, data = picea)
-
-#Normality
-plot(aov.4, 2)
 
 ############## Matt Russell ANOVA Textbook Exercises
 p.diameter <- ggplot(picea, aes(factor(SPP), DBH.23)) + 
@@ -401,8 +366,7 @@ plot(ranef.lme3)
 AIC(lmodel, picea.lme, picea.lme3)
 
 
-#################################
-
+################################# Generating HT model, imputing tree heights
 library(lme4)
 mixer <- lmer(HT.23~log(DBH.23+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
 mixer2 <- lmer(HT.23~log(DBH.23+0.1)+(1|SPP/PLOT/BLOCK), data=picea)
@@ -414,7 +378,6 @@ AIC(mixer3)
 summary(mixer3)
 picea$BLOCK <- as.factor(picea$BLOCK)
 picea$PLOT <- as.factor(picea$PLOT)
-
 
 ht.mod2 <- nlme(HT.23~4.5+exp(a+(b/DBH.23+1)),
                 data=picea,
@@ -486,70 +449,24 @@ p.vol <- ggplot(vol.summary, aes(SPP, mean.vol)) +
 p.vol
 
 ##################### ANOVA: does vol vary by pure vs mixed (one-way)
-vol.aov.3<- aov(vol~CODE, data=picea)
-summary(vol.aov.3)
-
-TukeyHSD(vol.aov.3)
-
-#Homogeneity of variances
-plot(vol.aov.3, 1)
-
-#Normality
-plot(vol.aov.3, 2)
-
-################# ANOVA: does diameter vary by mixed vs pure grouped by ID (two-way)
-picea <- picea%>%
-  unite(ID, 
-        BLOCK, 
-        PLOT,
-        remove = FALSE,
-        sep = ".")
-
-vol.aov.4 <- aov(vol~CODE+ID,data=picea)
-summary(vol.aov.4)
-
-# if you were looking for an interaction use formula below
-#aov.3 <- aov(DBH.2023) ~ CODE * id, data = my_data)
-
-group_by(picea, CODE, ID) %>%
-  summarise(
-    count = n(),
-    mean = mean(vol, na.rm = TRUE),
-    sd = sd(vol, na.rm = TRUE)
-  )
-
-# pairwise comparisons between groups
-TukeyHSD(vol.aov.4, which = "CODE")
-TukeyHSD(vol.aov.4, which = "ID")
-
-#Homogeneity of variances
-plot(vol.aov.4, 1)
-
-library(car) #if p-value is <.05 then var between groups is significantly different, don't want that
-leveneTest(vol ~ CODE*ID, data = picea)
-
-#Normality
-plot(vol.aov.4, 2)
-
-#or follow Matt Russels way for ANOVA
-p2.vol <- ggplot(picea, aes(factor(CODE), vol)) + 
+p.vol.2 <- ggplot(picea, aes(factor(CODE), vol)) + 
   geom_boxplot()+
   ylab("Volume (cubic feet)") +
   xlab("Species Mix")
-p2.vol
-volmix.aov <- lm(vol ~ CODE, data = picea)
+p.vol.2
+piceamix2.aov <- lm(vol ~ CODE, data = picea)
 
-anova(volmix.aov)
+anova(piceamix2.aov)
 
 pairwise.t.test(picea$vol, picea$CODE, p.adj = "bonferroni")
 
 library(agricolae)
-lsd.vol <- LSD.test(volmix.aov, "CODE", p.adj = "bonferroni")
-lsd.vol$groups
+lsd.picea <- LSD.test(piceamix2.aov, "CODE", p.adj = "bonferroni")
+lsd.picea$groups
 
-vol.summary <- picea %>% 
+vol.summary2 <- picea %>% 
   group_by(CODE)  %>%  
   summarize(n.vol = n(),
             mean.vol = mean(vol),
             sd.vol = sd(vol))
-vol.summary
+vol.summary2
