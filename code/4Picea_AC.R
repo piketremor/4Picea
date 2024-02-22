@@ -13,23 +13,29 @@ library(tidyverse)
 setwd("G:/Shared drives/4Picea/4Picea/raw")
 picea <- read.csv("4Picea.csv")
 
+#-------------------------------------------------------------------------------
+#clean data
+#-------------------------------------------------------------------------------
 picea$DBH.23 <- as.numeric(picea$DBH.23)
 picea$DBH.23[is.na(picea$DBH.23)] <- 0
 picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 
+#-------------------------------------------------------------------------------
+#summary statistics
+#-------------------------------------------------------------------------------
 picea$tree.factor <- 10
 
-picea.summary <- picea%>%
+picea <- picea%>%
   filter(.,STATUS.23=="1")%>%
   mutate(tree.ba = DBH.23^2*0.005454)%>%
   group_by(uid)%>%
-  summarize(bapa = sum(tree.ba*tree.factor), # tree.factor is your expansion factor
+  mutate(bapa = sum(tree.ba*tree.factor), # tree.factor is your expansion factor
             tpa = sum(tree.factor))
 
 plot(picea.summary$bapa,picea.summary$tpa) # most plots are between 20 and 140 bapa
-
-######################### calculate species IVs
-
+#-------------------------------------------------------------------------------
+#calculate species IVs
+#-------------------------------------------------------------------------------
 picea.species <- picea%>%
   filter(.,STATUS.23=="1")%>%
   group_by(uid,SPP)%>%
@@ -41,50 +47,95 @@ picea.species <- picea%>%
   mutate(prop.ba = sp.bapa/bapa)%>%
   mutate(IV = (prop.tpa+prop.ba)/2)
 
-#view(picea.species)
-
-####################### double check, all plots should sum to 1
+#-------------------------------------------------------------------------------
+#double check, all plots should sum to 1
+#-------------------------------------------------------------------------------
 check <- picea.species%>%
   group_by(uid)%>%
   summarize(checker = sum(IV))
 print(check,n=30) # they sum to 1, good
 
-###################### imputing tree heights
-library(lme4)
+#-------------------------------------------------------------------------------
+#imputing tree heights (Henrikson equation)
+#-------------------------------------------------------------------------------
+#library(lme4)
 
 # select for BLOCK, PLOT, TREE, SPP from picea dataset
-tree_species <- picea%>%
-  select(BLOCK, PLOT, TREE, SPP)
+#tree_species <- picea%>%
+  #select(BLOCK, PLOT, TREE, SPP)
 
 # filter for the living trees
-picea <- filter(picea, STATUS.23 == 1)
+#picea <- filter(picea, STATUS.23 == 1)
 
 # filter for heights above 0
-height.frame <- filter(picea, HT.23 > 0)
+#height.frame <- filter(picea, HT.23 > 0)
 
 # create model, Henrikson Equation (be wary of tree > 5" DBH)
-ht.lm <- lmer(HT.23 ~ log(DBH.23) + (1 | SPP/PLOT/BLOCK), data = height.frame) #error means that model is likely overfitted
-summary(ht.lm)
+#ht.lm <- lmer(HT.23 ~ log(DBH.23) + (1 | SPP/PLOT/BLOCK), data = height.frame) #error means that model is likely overfitted
+#summary(ht.lm)
 
 # predict heights
-tree_predict <- picea %>% 
-  mutate(PRD_HT = predict(ht.lm, picea, re.form = NULL, allow.new.levels = TRUE))
+#tree_predict <- picea %>% 
+  #mutate(PRD_HT = predict(ht.lm, picea, re.form = NULL, allow.new.levels = TRUE))
 
-tree_predict$HT.23[is.na(tree_predict$HT.23)] <- 0
-tree_predict$PRD_HT[is.na(tree_predict$PRD_HT)] <- 0
-tree_predict$fin.ht <- ifelse(tree_predict$HT.23<1,tree_predict$PRD_HT,tree_predict$HT.23)
-tree_predict$fin.ht <- ifelse(tree_predict$fin.ht<0,0,tree_predict$fin.ht)
+#tree_predict$HT.23[is.na(tree_predict$HT.23)] <- 0
+t#ree_predict$PRD_HT[is.na(tree_predict$PRD_HT)] <- 0
+#tree_predict$fin.ht <- ifelse(tree_predict$HT.23<1,tree_predict$PRD_HT,tree_predict$HT.23)
+#tree_predict$fin.ht <- ifelse(tree_predict$fin.ht<0,0,tree_predict$fin.ht)
 
-tree_predict$SPP[is.na(tree_predict$SPP)] <- "OS"
+#tree_predict$SPP[is.na(tree_predict$SPP)] <- "OS"
 
-tree_predict["vol"] <- 
-  mapply(vol.calc,SPP=tree_predict$SPP,DBH=tree_predict$DBH.23,HT=tree_predict$fin.ht)
+#tree_predict["vol"] <- 
+  #mapply(vol.calc,SPP=tree_predict$SPP,DBH=tree_predict$DBH.23,HT=tree_predict$fin.ht)
 
-xyplot(vol~DBH.23|SPP,data=tree_predict)
-xyplot(fin.ht~DBH.23|SPP,data=tree_predict)
-xplot(fin.ht~DBH.23,data=tree_predict)
+#xyplot(vol~DBH.23|SPP,data=tree_predict)
+#xyplot(fin.ht~DBH.23|SPP,data=tree_predict)
+#xplot(fin.ht~DBH.23,data=tree_predict)
 
-######################## basal area larger (bal)
+#-------------------------------------------------------------------------------
+#generating HT model
+#-------------------------------------------------------------------------------
+library(lme4)
+mixer <- lmer(HT.23~log(DBH.23+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
+mixer2 <- lmer(HT.23~log(DBH.23+0.1)+(1|SPP/PLOT/BLOCK), data=picea)
+AIC(mixer2, mixer)
+
+library(nlme)
+mixer3 <- lme(HT.23~log(DBH.23+0.1)+SPP, random=~1|PLOT/BLOCK, data=picea, na.action=na.omit)
+AIC(mixer3)
+summary(mixer3)
+picea$BLOCK <- as.factor(picea$BLOCK)
+picea$PLOT <- as.factor(picea$PLOT)
+
+ht.mod2 <- nlme(HT.23~4.5+exp(a+(b/DBH.23+1)),
+                data=picea,
+                fixed=a+b~1,
+                random=a+b~1|BLOCK/PLOT/SPP,
+                na.action=na.pass,verbose=T,
+                start=c(a=4.5, b=-6),
+                control=nlmeControl(returnObject = TRUE,msMaxIter = 10000,maxIter = 5000))
+summary(ht.mod2)
+
+#-------------------------------------------------------------------------------
+#imputing tree heights (Wykoff)
+#-------------------------------------------------------------------------------
+library(MEForLab)
+
+picea$wykoff.ht <- predict(ht.mod2,picea)
+picea$HT.23[is.na(picea$HT.23)] <- 0
+picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$wykoff.ht)
+xyplot(final.ht~DBH.23|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+#volume calculation
+#-------------------------------------------------------------------------------
+picea <- picea%>%
+  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
+xyplot(vol~DBH.23|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+#basal area larger (bal)
+#-------------------------------------------------------------------------------
 spruce.bal <- picea%>%
   mutate(basal.area = picea$DBH.23^2*0.005454)%>%
   mutate(bapa = basal.area*10)%>%
@@ -94,25 +145,116 @@ spruce.bal <- picea%>%
 spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
 xyplot(bal~DBH.23|SPP,data=spruce.bal)
 
-###################### height larger (htl)
-spruce.htl <- tree_predict%>%
+#-------------------------------------------------------------------------------
+#height larger (htl)
+#-------------------------------------------------------------------------------
+picea <- picea%>%
 group_by(uid)%>%
-  arrange(desc(fin.ht),.by_group = TRUE)%>%
-  mutate(htl = lag(cumsum(fin.ht)))
-spruce.htl$htl[is.na(spruce.htl$htl)] <- 0
-
+  arrange(desc(final.ht),.by_group = TRUE)%>%
+  mutate(htl = lag(cumsum(final.ht)))
+picea$htl[is.na(spruce.htl$htl)] <- 0
 xyplot(htl~fin.ht|SPP,data=spruce.htl)
 
-###################### height/diameter ratios
-ht_dbh <- tree_predict %>% 
-  mutate(ht_dbh = fin.ht/DBH.23)
+#-------------------------------------------------------------------------------
+#height/diameter ratios
+#-------------------------------------------------------------------------------
+picea <- picea %>% 
+  mutate(ht.dbh = final.ht/DBH.23)
+xyplot(final.ht~DBH.23|SPP,data=picea)
 
-###################### vicary SI, error need to enter OS and NS
-#tree_predict["SI"] <- 
-  #mapply(vicary.site,SPP=tree_predict$Species,ht=tree_predict$fin.ht,age=28)
+#-------------------------------------------------------------------------------
+#Site Index
+#-------------------------------------------------------------------------------
+#vicary.site
+picea <- picea%>%
+  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=wykoff.ht, age=28))
+
+mean(picea$vicary.si)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(vicary.si), list(name = mean))
+
+#steinman.site
+picea <- picea%>%
+  mutate(steinman.si=mapply(steinman.site,ht=wykoff.ht, age=28))
+
+mean(picea$steinman.si)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(steinman.si), list(name = mean))
+
+#-------------------------------------------------------------------------------
+#Top Height (vicary height)
+#-------------------------------------------------------------------------------
+picea <- picea%>%
+  mutate(topht=mapply(vicary.height,SPP="RS", age=28, si=si))
+
+mean(picea$topht)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(topht), list(name = mean))
+
+#-------------------------------------------------------------------------------
+#qmd
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(qmd=mapply(qmd,ba=bapa, tpa=tpa))
+
+mean(picea$qmd)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(qmd), list(name = mean))
 
 
-##################### ANOVA: does diameter vary by species (one-way)
+#-------------------------------------------------------------------------------
+#relative density index
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(rdi=mapply(relative.density.index,bapa=bapa, qmd=qmd))
+
+mean(picea$rdi)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(rdi), list(name = mean))
+
+xyplot(qmd~bapa|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+#relative spacing
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(rs=mapply(relative.spacing,tpa=tpa, domht=topht))
+
+mean(picea$rdi)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(rdi), list(name = mean))
+
+xyplot(qmd~bapa|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+#stand density index
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(sdi=mapply(stand.density.index,tpa=tpa, qmd=qmd))
+
+mean(picea$sdi)
+
+picea %>%
+  group_by(uid) %>%
+  summarise_at(vars(sdi), list(name = mean))
+
+xyplot(qmd~tpa|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+#ANOVA: does diameter vary by species (one-way)
+#-------------------------------------------------------------------------------
 aov.1<- aov(DBH.23~SPP, data=picea)
 summary(aov.1)
 
@@ -124,7 +266,9 @@ plot(aov.1, 1)
 #Normality
 plot(aov.1, 2)
 
-############### ANOVA: does diameter vary by species grouped by id, plot level (two-way)
+#-------------------------------------------------------------------------------
+#ANOVA: does diameter vary by species grouped by id, plot level (two-way)
+#-------------------------------------------------------------------------------
 picea <- picea%>%
   unite(ID, 
         BLOCK, 
@@ -158,7 +302,9 @@ leveneTest(DBH.23 ~ SPP*ID, data = picea)
 #Normality
 plot(aov.2, 2)
 
-##################### ANOVA: does diameter vary by pure vs mixed (one-way)
+#-------------------------------------------------------------------------------
+#ANOVA: does diameter vary by pure vs mixed (one-way)
+#-------------------------------------------------------------------------------
 aov.3<- aov(DBH.23~CODE, data=picea)
 summary(aov.3)
 
@@ -170,7 +316,9 @@ plot(aov.3, 1)
 #Normality
 plot(aov.3, 2)
 
-############## Matt Russell ANOVA Textbook Exercises
+#-------------------------------------------------------------------------------
+#Matt Russell ANOVA Textbook Exercises
+#-------------------------------------------------------------------------------
 p.diameter <- ggplot(picea, aes(factor(SPP), DBH.23)) + 
   geom_boxplot()+
   ylab("Diameter (inches)") +
@@ -365,47 +513,9 @@ plot(ranef.lme3)
 
 AIC(lmodel, picea.lme, picea.lme3)
 
-
-################################# Generating HT model, imputing tree heights
-library(lme4)
-mixer <- lmer(HT.23~log(DBH.23+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
-mixer2 <- lmer(HT.23~log(DBH.23+0.1)+(1|SPP/PLOT/BLOCK), data=picea)
-AIC(mixer2, mixer)
-
-library(nlme)
-mixer3 <- lme(HT.23~log(DBH.23+0.1)+SPP, random=~1|PLOT/BLOCK, data=picea, na.action=na.omit)
-AIC(mixer3)
-summary(mixer3)
-picea$BLOCK <- as.factor(picea$BLOCK)
-picea$PLOT <- as.factor(picea$PLOT)
-
-ht.mod2 <- nlme(HT.23~4.5+exp(a+(b/DBH.23+1)),
-                data=picea,
-                fixed=a+b~1,
-                random=a+b~1|BLOCK/PLOT/SPP,
-                na.action=na.pass,verbose=T,
-                start=c(a=4.5, b=-6),
-                control=nlmeControl(returnObject = TRUE,msMaxIter = 10000,maxIter = 5000))
-summary(ht.mod2)
-
-picea$wykoff.ht <- predict(ht.mod2,picea)
-xyplot(final.ht~DBH.23|SPP,data=picea)
-picea$HT.23[is.na(picea$HT.23)] <- 0
-picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$wykoff.ht)
-
-library(MEForLab)
-
-picea <- picea%>%
-  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
-xyplot(vol~DBH.23|SPP,data=picea)
-
-##################### ANOVA: does volume vary by species (one-way)
-p.vol <- ggplot(picea, aes(factor(SPP), vol)) + 
-  geom_boxplot()+
-  ylab("Volume (cubic feet)") +
-  xlab("Species")
-p.vol
-
+#-------------------------------------------------------------------------------
+#ANOVA: does volume vary by species (one-way)
+#-------------------------------------------------------------------------------
 
 #Anova
 vol.aov.1<- aov(vol~SPP, data=picea)
@@ -420,6 +530,12 @@ plot(vol.aov.1, 1)
 plot(vol.aov.1, 2)
 
 #or can do similar calculations following Matt Russel's Method
+p.vol <- ggplot(picea, aes(factor(SPP), vol)) + 
+  geom_boxplot()+
+  ylab("Volume (cubic feet)") +
+  xlab("Species")
+p.vol
+
 vol.aov.2 <- lm(vol ~ SPP, data = picea)
 
 anova(vol.aov.2)
@@ -448,7 +564,9 @@ p.vol <- ggplot(vol.summary, aes(SPP, mean.vol)) +
   scale_y_continuous(limits = c(0, 5))
 p.vol
 
-##################### ANOVA: does vol vary by pure vs mixed (one-way)
+#-------------------------------------------------------------------------------
+#ANOVA: does vol vary by pure vs mixed (one-way)
+#-------------------------------------------------------------------------------
 p.vol.2 <- ggplot(picea, aes(factor(CODE), vol)) + 
   geom_boxplot()+
   ylab("Volume (cubic feet)") +
@@ -470,3 +588,15 @@ vol.summary2 <- picea %>%
             mean.vol = mean(vol),
             sd.vol = sd(vol))
 vol.summary2
+
+limits <- aes(ymax = mean.vol + sd.vol, 
+              ymin = mean.vol - sd.vol)
+p.vol2 <- ggplot(vol.summary2, aes(CODE, mean.vol)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(limits, width = 0.25) +
+  ylab("Volume (Cubic Feet") +
+  xlab("Species Mix") +
+  geom_text(aes(label = c("a", "ab", "ab", "ab", "abc", "abc", "bcd", "cde", "de", "e")), vjust = -10) +
+  scale_y_continuous(limits = c(0, 5))
+p.vol2
+
