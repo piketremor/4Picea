@@ -144,6 +144,7 @@ spruce.bal <- picea%>%
   mutate(bal = lag(cumsum(bapa)))
 spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
 xyplot(bal~DBH.23|SPP,data=spruce.bal)
+xyplot(bal~DBH.23|CODE,data=spruce.bal)
 
 #-------------------------------------------------------------------------------
 #height larger (htl)
@@ -153,7 +154,8 @@ group_by(uid)%>%
   arrange(desc(final.ht),.by_group = TRUE)%>%
   mutate(htl = lag(cumsum(final.ht)))
 picea$htl[is.na(spruce.htl$htl)] <- 0
-xyplot(htl~fin.ht|SPP,data=spruce.htl)
+xyplot(htl~final.ht|SPP,data=spruce.htl)
+xyplot(htl~final.ht|CODE,data=spruce.htl)
 
 #-------------------------------------------------------------------------------
 #height/diameter ratios
@@ -161,6 +163,7 @@ xyplot(htl~fin.ht|SPP,data=spruce.htl)
 picea <- picea %>% 
   mutate(ht.dbh = final.ht/DBH.23)
 xyplot(final.ht~DBH.23|SPP,data=picea)
+xyplot(final.ht~DBH.23|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
 #Site Index
@@ -174,6 +177,7 @@ mean(picea$vicary.si)
 picea %>%
   group_by(uid) %>%
   summarise_at(vars(vicary.si), list(name = mean))
+
 
 #steinman.site
 picea <- picea%>%
@@ -560,7 +564,7 @@ p.vol <- ggplot(vol.summary, aes(SPP, mean.vol)) +
   geom_errorbar(limits, width = 0.25) +
   ylab("Volume (Cubic Feet") +
   xlab("Species") +
-  geom_text(aes(label = c("a", "b", "c", "c", "c", "c")), vjust = -6) +
+  geom_text(aes(label = c("a", b","c","c","c","c")), vjust = -6) +
   scale_y_continuous(limits = c(0, 5))
 p.vol
 
@@ -594,9 +598,12 @@ limits <- aes(ymax = mean.vol + sd.vol,
 p.vol2 <- ggplot(vol.summary2, aes(CODE, mean.vol)) +
   geom_bar(stat = "identity") +
   geom_errorbar(limits, width = 0.25) +
-  ylab("Volume (Cubic Feet") +
+  ylab("Volume (Cubic Feet)") +
   xlab("Species Mix") +
   geom_text(aes(label = c("a", "ab", "ab", "ab", "abc", "abc", "bcd", "cde", "de", "e")), vjust = -10) +
   scale_y_continuous(limits = c(0, 5))
 p.vol2
+
+
+
 
