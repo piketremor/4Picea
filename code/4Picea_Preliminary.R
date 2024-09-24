@@ -41,6 +41,10 @@ demSt
 plot(demSt$slope)
 plot(shape,add=TRUE)
 
+demSt
+plot(demSt$aspect)
+plot(shape,add=TRUE)
+
 library(topmodel)
 library(MEForLab)
 bob <- create_layers(test)
