@@ -159,12 +159,19 @@ xyplot(final.ht~DBH.23|SPP,data=picea)
 xyplot(final.ht~DBH.23|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
-#volume calculation
+#volume calculation at the individual tree level
 #-------------------------------------------------------------------------------
 picea <- picea%>%
   mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
 
 xyplot(vol~DBH.23|SPP,data=picea)
+
+p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
+  geom_boxplot() +
+  ylab("Volume (cubic feet)") +
+  xlab("Species Mixture") +
+  ggtitle("Volume by Species Mixture")
+print(p.vol.code)
 
 # Filter for the species of interest
 picea.ns <- picea %>%
@@ -185,9 +192,8 @@ p.vol
 
 xyplot(vol~DBH.23|CODE,data=picea)
 xyplot(vol~DBH.23|SPP,data=picea)
-
 #-------------------------------------------------------------------------------
-#overyielding & transgressive overyielding 
+#overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
 total_volume_by_code <- picea %>%
   group_by(BLOCK, PLOT, CODE) %>%
