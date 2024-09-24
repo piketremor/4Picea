@@ -306,6 +306,8 @@ print(transgressive_overyielding_results)
 #Stem Form: volume deductions 
 #Remember this is only for height trees, must apply to rest of imputed heights
 #-------------------------------------------------------------------------------
+# Step 1: generate LR equation to determine what attributes to a defect being present 
+
 picea <- picea %>%
   mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
 
@@ -332,14 +334,45 @@ mod4 <- glmer(defect_present ~ DBH.23 + (1 |SPP),
 
 AIC(mod1, mod2, mod3, mod4)
 
-# Fit the model on the subset of data
-filtered_data <- picea %>% filter(!is.na(HT.23))
-mod3 <- glm(defect_present ~ DBH.23 + SPP, data = filtered_data, family = binomial(link = "logit"))
+# Step 2: use model to determine if defect would be present for all other trees
 
-# Make predictions on the filtered data
-filtered_data$predicted_prob <- predict(mod3, newdata = filtered_data, type = "response")
-picea <- left_join(picea, filtered_data %>% select(BLOCK, PLOT, TREE, predicted_prob), by = "BLOCK","PLOT", "TREE")  
+# Step 3: deduct average T_DEDUCT basd on DBH.23 & SPP????
 
+#OR
+
+# Step 1: model with T_DEDUCT on height trees
+# Deduct T_DEDUCT from vol where T_DEDUCT is available
+picea <- picea %>%
+  mutate(vol_adj = ifelse(!is.na(T_DEDUCT), vol * (1 - T_DEDUCT / 100), vol))
+
+# Fit a model to predict T_DEDUCT
+mod10 <- glm(T_DEDUCT ~ DBH.23 + SPP, 
+                      data = picea, 
+                      na.action = na.exclude)  
+summary(mod10)
+
+mod11 <- glm(T_DEDUCT ~ DBH.23 * SPP, 
+             data = picea, 
+             na.action = na.exclude)
+
+mod12 <- glm(T_DEDUCT ~ DBH.23 + HT.23 + SPP + Proportion, 
+             data = picea, 
+             na.action = na.exclude)  
+summary(mod12)
+
+AIC(mod10, mod11, mod12)
+
+# Step 2: apply that model to the rest of the trees
+# Predict T_DEDUCT for rows without it
+picea$predicted_T_DEDUCT <- predict(mod12, newdata = picea, type = "response")
+
+# Deduct predicted T_DEDUCT from vol for those rows
+picea <- picea %>%
+  mutate(vol_adj = ifelse(is.na(T_DEDUCT) & !is.na(predicted_T_DEDUCT), 
+                               vol * (1 - predicted_T_DEDUCT / 100), 
+                               vol_adj))
+
+view(picea)
 #-------------------------------------------------------------------------------
 #basal area larger (bal)
 #-------------------------------------------------------------------------------
@@ -477,3 +510,4 @@ picea %>%
   summarise_at(vars(sdi), list(name = mean))
 
 xyplot(qmd~tpa|SPP,data=picea)
+
