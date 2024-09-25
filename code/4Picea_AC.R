@@ -352,7 +352,36 @@ ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Ov
 
 picea <- picea %>%
   mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
+
 plot(picea$defect_present)
+
+#NAs make sense since, filter for trees with HTs and Stem Form taken
+ggplot(picea, aes(x = as.factor(defect_present))) +
+  geom_bar() +
+  labs(x = "Defect Present (0 = No, 1 = Yes)", y = "Count") +
+  ggtitle("Bar Chart of Defect Presence") +
+  theme_minimal()
+
+
+# Step 2: Defect 1,0 if 1 then go to glm model and account for how much volume is deducted based on SPP, Ht.23, DBH,23, etc. 
+
+#histogram of T_DEDUCT distrbution from 0-100
+picea <- picea %>%
+  mutate(T_DEDUCT = as.numeric(T_DEDUCT),  # Convert T_DEDUCT to numeric
+         defect_present = ifelse(T_DEDUCT > 0, 1, 0))
+
+#keeping only subset of trees with values in T_DEDUCT column 
+deduct <- picea %>%
+  filter(T_DEDUCT >= 0 & T_DEDUCT <= 100)
+
+ggplot(deduct, aes(x = T_DEDUCT)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
+  labs(x = "T_DEDUCT", y = "Count") +
+  ggtitle("Histogram of T_DEDUCT Values (0-100)") +
+  theme_minimal() +
+  xlim(0, 100) +  
+  ylim(0, 30)  
+
 
 mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
             data = picea, 
@@ -377,11 +406,11 @@ mod4 <- glmer(defect_present ~ DBH.23 + (1 |SPP),
 
 AIC(mod1, mod2, mod3, mod4)
 
-# Step 2: use model to determine if defect would be present for all other trees
+# Step 3: use model to to impute T_DEDUCT for all stems
 
-# Step 3: deduct average T_DEDUCT basd on DBH.23 & SPP????
+# Step 4: vol - T_DEDUCT = fin.vol
 
-####################### OR ###################################
+################################ OR ############################################
 
 # Step 1: model with T_DEDUCT on height trees
 # Deduct T_DEDUCT from vol where T_DEDUCT is available
