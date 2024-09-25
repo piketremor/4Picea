@@ -59,6 +59,11 @@ ggplot(picea, aes(x = bapa, y = tpa, color = CODE)) +
   xlim(20, 140) +  
   theme_minimal()
 
+require(lattice)
+xyplot(bapa~tpa|CODE,data=picea)
+
+picea$dbh.class <- 2*as.integer((picea$DBH.23+(2/2))/2)
+
 
 #DBH distribution
 picea_distribution <- picea %>%
@@ -66,11 +71,11 @@ picea_distribution <- picea %>%
   mutate(DiameterClass = cut(DBH.23, 
                              breaks = seq(0, 15, by = 1), 
                              right = FALSE)) %>%
-  group_by(DiameterClass) %>%
+  group_by(dbh.class) %>%
   summarise(Count = n(), 
             .groups = 'drop')
 
-ggplot(picea_distribution, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
+ggplot(picea_distribution, aes(x = dbh.class, y = Count, fill = dbh.class)) +
   geom_bar(stat = "identity", show.legend = FALSE) +
   labs(title = "Diameter Class Distribution",
        x = "Diameter Classes (DBH in inches)",
@@ -106,16 +111,36 @@ ggplot(species_proportions, aes(x = interaction(PLOT, BLOCK), y = Proportion, fi
 #-------------------------------------------------------------------------------
 require(nlme)
 
-ht.mod <- nlme(HT.23 ~ 4.5 + exp(a + (b / DBH.23 + 1)),
-                data = picea,
+xyplot(HT.23~DBH.23|SPP,data=picea)
+
+spruce  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
+xyplot(HT.23~DBH.23|SPP,data=spruce)
+
+
+ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
+                data = spruce,
                 fixed = a + b ~ 1,
-                random = a + b ~ 1 | PLOT/SPP,  # Random intercept and slope for both
+                random = a + b ~ 1 | BLOCK/PLOT/SPP,  # Random intercept and slope for both
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 performance(ht.mod)
 
-ht.mod2 <- nlme(HT.23 ~ 4.5 + exp(a + (b / DBH.23 + 1)) * Proportion, #treats species proportion as a multiplicative factor affecting height
+
+ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
+               data = spruce,
+               fixed = a + b ~ SPP,
+               random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
+               na.action = na.pass,
+               start = c(a = 4.5,0,0,0,0,0,0,0,0,0, b = -6,0,0,0,0,0,0,0,0,0),
+               control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+
+
+
+
+
+ht.mod2 <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)) * Proportion, #treats species proportion as a multiplicative factor affecting height
                data = picea,
                fixed = a + b ~ 1,
                random = a + b ~ 1 | PLOT/SPP,
@@ -123,8 +148,9 @@ ht.mod2 <- nlme(HT.23 ~ 4.5 + exp(a + (b / DBH.23 + 1)) * Proportion, #treats sp
                verbose = TRUE,
                start = c(a = 4.5, b = -6),
                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-performance(ht.mod2)
-
+summary(ht.mod2)
+performance(ht.mod,ht.mod2)
+anova(ht.mod,ht.mod2)
 
 
 ht.mod3 <- nlme(HT.23 ~ a + b * DBH.23 + exp(Proportion),  #fit the NLME model with proportions as a fixed effect
