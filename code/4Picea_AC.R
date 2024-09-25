@@ -120,12 +120,11 @@ xyplot(HT.23~DBH.23|SPP,data=spruce)
 ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
                 data = spruce,
                 fixed = a + b ~ 1,
-                random = a + b ~ 1 | BLOCK/PLOT/SPP,  # Random intercept and slope for both
+                random = a + b ~ 1 | BLOCK/PLOT/SPP,  
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 performance(ht.mod)
-
 
 ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
                data = spruce,
@@ -163,7 +162,7 @@ ht.mod3 <- nlme(HT.23 ~ a + b * DBH.23 + exp(Proportion),  #fit the NLME model w
 performance(ht.mod3)
 
 
-ht.mod4 <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
+ht.mod <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
                            data = picea,
                            fixed = a + b ~ 1,
                            random = a + b ~ 1 | PLOT/SPP,
@@ -297,6 +296,12 @@ calculate_overyielding <- function(data) {
 overyielding_results <- calculate_overyielding(data)
 print(overyielding_results)
 
+ggplot(overyielding_results, aes(x = Mixture, y = Overyielding)) +
+  geom_bar(stat = "identity", fill = "grey") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at overyielding = 1
+  labs(title = "Overyielding by Species Mixture", x = "Species Mixture", y = "Overyielding Value") +
+  theme_minimal()
+
 # Function to calculate transgressive overyielding
 calculate_transgressive_overyielding <- function(data) {
   results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
@@ -333,6 +338,11 @@ calculate_transgressive_overyielding <- function(data) {
 transgressive_overyielding_results <- calculate_transgressive_overyielding(data)
 print(transgressive_overyielding_results)
 
+ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Overyielding)) +
+  geom_bar(stat = "identity", fill = "grey") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
+  labs(title = "Transgressive Overyielding by Species Mixture", x = "Species Mixture", y = "Transgressive Overyielding Value") +
+  theme_minimal()
 
 #-------------------------------------------------------------------------------
 #Stem Form: volume deductions 
@@ -342,6 +352,7 @@ print(transgressive_overyielding_results)
 
 picea <- picea %>%
   mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
+plot(picea$defect_present)
 
 mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
             data = picea, 
@@ -370,7 +381,7 @@ AIC(mod1, mod2, mod3, mod4)
 
 # Step 3: deduct average T_DEDUCT basd on DBH.23 & SPP????
 
-#OR
+####################### OR ###################################
 
 # Step 1: model with T_DEDUCT on height trees
 # Deduct T_DEDUCT from vol where T_DEDUCT is available
