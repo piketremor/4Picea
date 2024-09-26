@@ -112,75 +112,115 @@ ggplot(species_proportions, aes(x = interaction(PLOT, BLOCK), y = Proportion, fi
 require(nlme)
 
 xyplot(HT.23~DBH.23|SPP,data=picea)
-
+picea$SPP <- as.factor(picea$SPP)
+picea$CODE <- as.factor(picea$CODE)
 spruce  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
 xyplot(HT.23~DBH.23|SPP,data=spruce)
+str(spruce)
 
 
-ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
+ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 data = spruce,
                 fixed = a + b ~ 1,
-                random = a + b ~ 1 | BLOCK/PLOT/SPP,  # Random intercept and slope for both
+                random = a + b ~ 1 | SPP,  # Random intercept and slope for both
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 performance(ht.mod)
+summary(ht.mod)
+ranef(ht.mod)
 
-
-ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
+ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                data = spruce,
-               fixed = a + b ~ SPP,
+               fixed = a + b ~ 1,
                random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
                na.action = na.pass,
-               start = c(a = 4.5,0,0,0,0,0,0,0,0,0, b = -6,0,0,0,0,0,0,0,0,0),
-               control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-
-
-
-
-
-
-ht.mod2 <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)) * Proportion, #treats species proportion as a multiplicative factor affecting height
-               data = picea,
-               fixed = a + b ~ 1,
-               random = a + b ~ 1 | PLOT/SPP,
-               na.action = na.pass,
-               verbose = TRUE,
                start = c(a = 4.5, b = -6),
                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-summary(ht.mod2)
-performance(ht.mod,ht.mod2)
-anova(ht.mod,ht.mod2)
+performance(ht.mod)
+
+AIC(ht.mod,ht.mod2)
 
 
-ht.mod3 <- nlme(HT.23 ~ a + b * DBH.23 + exp(Proportion),  #fit the NLME model with proportions as a fixed effect
-               data = picea,
-               fixed = a + b ~ 1,
-               random = a + b ~ 1 | PLOT/SPP,
-               na.action = na.pass,
-               start = c(a = 4.5, b = -6),
-               control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-performance(ht.mod3)
+ht.mod3 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
+                data = spruce,
+                fixed = a + b ~ SPP,
+                random = a + b ~ 1 | BLOCK,  # Random intercept and slope for both
+                na.action = na.pass,
+                start = c(a = 4.5,0,0,0, b = -6,0,0,0),
+                control = nlmeControl(returnObject = TRUE, msMaxIter = 1000000, maxIter = 500000))
+                #control=lmeControl(opt="optim"))
 
+AIC(ht.mod3,ht.mod2,ht.mod)
+summary(ht.mod3)
 
-ht.mod4 <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
-                           data = picea,
-                           fixed = a + b ~ 1,
-                           random = a + b ~ 1 | PLOT/SPP,
-                           na.action = na.pass,
-                           start = c(a = 4.5, b = -6),
-                           control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+ht.mod4 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
+                data = spruce,
+                fixed = a + b ~ SPP,
+                random = a + b ~ 1 | PLOT,  # Random intercept and slope for both
+                na.action = na.pass,
+                start = c(a = 4.5,0,0,0, b = -6,0,0,0),
+                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+summary(ht.mod4)
+plot(ht.mod4)
+AIC(ht.mod3,ht.mod4,ht.mod2,ht.mod)
 
-AIC(ht.mod, ht.mod2, ht.mod3, ht.mod4)
+ht.mod5 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
+                data = spruce,
+                fixed = a + b ~ CODE,
+                random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
+                na.action = na.pass,
+                start = c(a = 4.5,0,0,0,0,0,0,0,0,0,0, b = -6,0,0,0,0,0,0,0,0,0,0),
+                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+summary(ht.mod5)
+AIC(ht.mod,ht.mod2,ht.mod3,ht.mod4,ht.mod5)
+spruce$ht.fit <- predict(ht.mod2,spruce)
+xyplot(ht.fit~DBH.23|CODE,data=spruce)
+
+d <- (ht.mod2$coefficients$random)
+ds <- d$PLOT
+BLOCK <- c("B2","B2","B2","B2","B2",
+              "B2","B2","B2","B2","B2","B2",
+              "B3","B3","B3","B3","B3","B3",
+              "B3","B3","B3","B3",
+              "B4","B4","B4","B4","B4",
+              "B4","B4","B4","B4","B4")
+PLOT <- c("1","2","3","4","5","6","7","8","9","10","11",
+          "1","2","3","4","5","6","7","8","9","10",
+          "1","2","3","4","5","6","7","8","9","10")
+re.df <- as.data.frame(ds[,1:2])
+red <- cbind(re.df,BLOCK,PLOT)
+red$uid <- paste0(red$BLOCK,".",red$PLOT)
+red <- red[c(1,2,5)]
+spruces <- left_join(spruce,red,by=c("uid"))
+pairs(spruces[c(28,29,12,23:24,26)])
+plot(spruces$Proportion,spruces$b)
+prop.mod <- lm(a~Proportion,data=spruces)
+summary(prop.mod)
+
+picea$sp.dum <- ifelse(picea$SPP=="WS"|picea$SPP=="BS"|picea$SPP=="NS"|picea$SPP=="RS",1,0)
 
 #-------------------------------------------------------------------------------
 #imputing tree heights (Wykoff)
 #-------------------------------------------------------------------------------
 require(MEForLab)
-
-picea$wykoff.ht <- predict(ht.mod,picea)
+# if spruce, use the local model, otherwise use FVS base equations
+picea$local.ht <- ifelse(picea$sp.dum=="1",predict(ht.mod2,picea),0)
+picea$hd <- picea$local.ht/picea$DBH.23
+xyplot(hd~DBH.23|SPP,data=picea,ylim=c(0,20))
+picea$local.ht <- ifelse(picea$hd>12,0,picea$local.ht)
+xyplot(local.ht~DBH.23|SPP,data=picea)
+picea$fvs.ht <- ifelse(picea$local.ht<1,mapply(wykoff.ht,
+                       SPP=picea$SPP,
+                       DBH=picea$DBH.23),
+                       0)
+xyplot(fvs.ht~DBH.23|SPP,data=picea)
 picea$HT.23[is.na(picea$HT.23)] <- 0
-picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$wykoff.ht)
+picea$model.ht <- ifelse(picea$local.ht>0,picea$local.ht,picea$fvs.ht)
+picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$model.ht)
+
+
 xyplot(final.ht~DBH.23|SPP,data=picea)
 xyplot(final.ht~DBH.23|CODE,data=picea)
 
@@ -190,7 +230,7 @@ xyplot(final.ht~DBH.23|CODE,data=picea)
 picea <- picea%>%
   mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
 
-xyplot(vol~DBH.23|SPP,data=picea)
+xyplot(vol~DBH.23|CODE,data=picea)
 
 p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
   geom_boxplot() +
@@ -332,6 +372,15 @@ calculate_transgressive_overyielding <- function(data) {
 
 transgressive_overyielding_results <- calculate_transgressive_overyielding(data)
 print(transgressive_overyielding_results)
+
+ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Overyielding)) +
+  geom_boxplot() +
+  labs(title = "Volume by Species Mixture",
+       x = "Species Mixture",
+       y = "Volume (ft3)") +
+  theme_minimal()+
+  geom_hline(yintercept=1)
+  
 
 
 #-------------------------------------------------------------------------------
