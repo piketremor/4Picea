@@ -122,11 +122,8 @@ str(spruce)
 ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 data = spruce,
                 fixed = a + b ~ 1,
-<<<<<<< HEAD
                 random = a + b ~ 1 | SPP,  # Random intercept and slope for both
-=======
                 random = a + b ~ 1 | BLOCK/PLOT/SPP,  
->>>>>>> 69f4450331db5d8e6259a9c46cf6d4be94fbb8c9
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
@@ -134,11 +131,7 @@ performance(ht.mod)
 summary(ht.mod)
 ranef(ht.mod)
 
-<<<<<<< HEAD
 ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
-=======
-ht.mod <- nlme(HT.23 ~ 4.5 + exp((a + b) / (DBH.23 + 1)),
->>>>>>> 69f4450331db5d8e6259a9c46cf6d4be94fbb8c9
                data = spruce,
                fixed = a + b ~ 1,
                random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
@@ -162,7 +155,6 @@ ht.mod3 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
 AIC(ht.mod3,ht.mod2,ht.mod)
 summary(ht.mod3)
 
-<<<<<<< HEAD
 ht.mod4 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 data = spruce,
                 fixed = a + b ~ SPP,
@@ -173,7 +165,6 @@ ht.mod4 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
 summary(ht.mod4)
 plot(ht.mod4)
 AIC(ht.mod3,ht.mod4,ht.mod2,ht.mod)
-=======
 ht.mod <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
                            data = picea,
                            fixed = a + b ~ 1,
@@ -181,7 +172,6 @@ ht.mod <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
                            na.action = na.pass,
                            start = c(a = 4.5, b = -6),
                            control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
->>>>>>> 69f4450331db5d8e6259a9c46cf6d4be94fbb8c9
 
 ht.mod5 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 data = spruce,
