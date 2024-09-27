@@ -182,7 +182,7 @@ ht.mod5 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
 summary(ht.mod5)
-AIC(ht.mod,ht.mod2,ht.mod3,ht.mod4,ht.mod5)
+AIC(ht.mod2,ht.mod3,ht.mod4,ht.mod5)
 spruce$ht.fit <- predict(ht.mod2,spruce)
 xyplot(ht.fit~DBH.23|CODE,data=spruce)
 
@@ -388,21 +388,12 @@ transgressive_overyielding_results <- calculate_transgressive_overyielding(data)
 print(transgressive_overyielding_results)
 
 ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Overyielding)) +
-<<<<<<< HEAD
-  geom_boxplot() +
-  labs(title = "Volume by Species Mixture",
-       x = "Species Mixture",
-       y = "Volume (ft3)") +
-  theme_minimal()+
-  geom_hline(yintercept=1)
-  
-
-=======
-  geom_bar(stat = "identity", fill = "grey") +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(title = "Transgressive Overyielding by Species Mixture", x = "Species Mixture", y = "Transgressive Overyielding Value") +
+  geom_bar(stat = "identity", fill = "grey") +  # Use geom_bar for bar chart
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at 1
+  labs(title = "Transgressive Overyielding by Species Mixture", 
+       x = "Species Mixture", 
+       y = "Transgressive Overyielding Value") +
   theme_minimal()
->>>>>>> 69f4450331db5d8e6259a9c46cf6d4be94fbb8c9
 
 #-------------------------------------------------------------------------------
 #Stem Form: volume deductions 
@@ -557,7 +548,7 @@ summary(mod2)
 #-------------------------------------------------------------------------------
 #vicary.site
 picea <- picea%>%
-  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=wykoff.ht, age=28))
+  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=final.ht, age=28))
 
 mean(picea$vicary.si)
 
@@ -568,7 +559,7 @@ picea %>%
 
 #steinman.site
 picea <- picea%>%
-  mutate(steinman.si=mapply(steinman.site,ht=wykoff.ht, age=28))
+  mutate(steinman.si=mapply(steinman.site,ht=final.ht, age=28))
 
 mean(picea$steinman.si)
 
