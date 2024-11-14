@@ -16,6 +16,7 @@ library(performance)
 library(ggplot2)
 
 setwd("G:/Shared drives/4Picea/4Picea/raw")
+setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 
@@ -270,8 +271,17 @@ xyplot(vol~DBH.23|SPP,data=picea)
 #overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
 total_volume_by_code <- picea %>%
+  mutate(qmd.2 = qmd(bapa,tpa),
+         rd.2 = bapa/sqrt(qmd.2))%>%
   group_by(BLOCK, PLOT, CODE) %>%
-  summarise(Total_Volume = sum(vol, na.rm = TRUE) / 3, .groups = 'drop')
+  summarise(Total_Volume = sum(vol, na.rm = TRUE) / 3, .groups = 'drop',
+            BAPA = mean(bapa),
+            TPA = mean(tpa),
+            QMD = mean(qmd.2),
+            RD = mean(rd.2))
+
+write.csv(total_volume_by_code,"~/Desktop/4Picea_Standlister.csv")
+
 
 #boxplot of vol by CODE
 boxplot_metrics <- total_volume_by_code %>%
