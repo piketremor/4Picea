@@ -69,14 +69,20 @@ picea$tree.factor <- 10
 bapa_tpa_summary <- picea %>%
   filter(STATUS.23 == "1") %>%
   mutate(tree.ba = DBH.23^2 * 0.005454) %>%
-  group_by(uid, CODE) %>%
+  group_by(BLOCK, PLOT, uid, CODE) %>%
   summarise(
     bapa = sum(tree.ba * tree.factor, na.rm = TRUE),  
     tpa = sum(tree.factor, na.rm = TRUE)              
   )
 
+boxplot(bapa~CODE,data=picea)
+
+
 picea <- picea %>%
-  left_join(bapa_tpa_summary, by = c("uid", "CODE"))
+  left_join(bapa_tpa_summary, by = c("uid", "CODE", "BLOCK", "PLOT"))
+
+xyplot(bapa~Proportion|CODE,data=picea)
+
 
 plot(picea$bapa, picea$tpa)  # most plots are between 20 and 140 bapa
 
@@ -91,6 +97,7 @@ ggplot(picea, aes(x = bapa, y = tpa, color = CODE)) +
 
 require(lattice)
 xyplot(bapa ~ tpa | CODE, data = picea)
+xyplot(bapa ~ tpa | CODE, data = picea, type="l")
 
 #-------------------------------------------------------------------------------
 # #DBH distribution
@@ -142,48 +149,43 @@ ggplot(picea_distribution, aes(x = DiameterClass, y = Count, fill = DiameterClas
 #-------------------------------------------------------------------------------
 require(nlme)
 
-xyplot(HT.23~DBH.23|SPP,data=picea)
+xyplot(HT.23~DBH.23|SPP,data=picea, type="l")
 picea$SPP <- as.factor(picea$SPP)
 picea$CODE <- as.factor(picea$CODE)
 spruce  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
 xyplot(HT.23~DBH.23|SPP,data=spruce)
 str(spruce)
 
-#ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
-                #data = spruce,
-                #fixed = a + b ~ 1,
-                #random = a + b ~ 1 | SPP,  # Random intercept and slope for both
-                #random = a + b ~ 1 | BLOCK/PLOT/SPP,  
-                #na.action = na.pass,
-                #start = c(a = 4.5, b = -6),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-#performance(ht.mod)
-#summary(ht.mod)
-#ranef(ht.mod)
-
-ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
+# ht.mod preformed best with AIC of 7029
+ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 data = spruce,
                 fixed = a + b ~ 1,
-                random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
+                #random = a + b ~ 1 | SPP,  # Random intercept and slope for both
+                random = a + b ~ 1 | BLOCK/PLOT/SPP,  
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-performance(ht.mod2)
+performance(ht.mod)
+summary(ht.mod)
+ranef(ht.mod)
 
-AIC(ht.mod2)
-
+#ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
+                #data = picea,
+                #fixed = a + b ~ 1,
+                #random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
+                #na.action = na.pass,
+                #start = c(a = 4.5, b = -6),
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
 #ht.mod3 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = spruce,
                 #fixed = a + b ~ SPP,
-                #random = a + b ~ 1 | BLOCK,  # Random intercept and slope for both
+                #random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
                 #na.action = na.pass,
                 #start = c(a = 4.5,0,0,0, b = -6,0,0,0),
                 #control = nlmeControl(returnObject = TRUE, msMaxIter = 1000000, maxIter = 500000))
-#control=lmeControl(opt="optim"))
+#control=lmeControl(opt="optim")
 
-#AIC(ht.mod3,ht.mod2,ht.mod)
-#summary(ht.mod3)
 
 #ht.mod4 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 #data = spruce,
@@ -192,16 +194,6 @@ AIC(ht.mod2)
                 #na.action = na.pass,
                 #start = c(a = 4.5,0,0,0, b = -6,0,0,0),
                 #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-#summary(ht.mod4)
-#plot(ht.mod4)
-#AIC(ht.mod3,ht.mod4,ht.mod2,ht.mod)
-#ht.mod <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
-               #data = picea,
-               #fixed = a + b ~ 1,
-               #random = a + b ~ 1 | PLOT/SPP,
-               #na.action = na.pass,
-               #start = c(a = 4.5, b = -6),
-               #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
 #ht.mod5 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 #data = spruce,
@@ -211,12 +203,41 @@ AIC(ht.mod2)
                 #start = c(a = 4.5,0,0,0,0,0,0,0,0,0,0, b = -6,0,0,0,0,0,0,0,0,0,0),
                 #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
-#summary(ht.mod5)
-#AIC(ht.mod2,ht.mod3,ht.mod4,ht.mod5)
+#ht.mod6 <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
+                #data = picea,
+                #fixed = a + b ~ 1,
+                #random = a + b ~ 1 | PLOT/SPP,
+                #na.action = na.pass,
+                #start = c(a = 4.5, b = -6),
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+#AIC(ht.mod, ht.mod2,ht.mod3,ht.mod4,ht.mod5, ht.mod6)
 #spruce$ht.fit <- predict(ht.mod2,spruce)
 #xyplot(ht.fit~DBH.23|CODE,data=spruce)
 
-#d <- (ht.mod2$coefficients$random)
+# preditc ht.mod on picea to fit all heights, then fit final heights
+picea$ht.fit <- predict(ht.mod, picea)
+xyplot(ht.fit~DBH.23|SPP,data=picea)
+picea$hd <- picea$ht.fit/picea$DBH.23
+xyplot(hd~DBH.23|SPP,data=picea)
+picea$final.ht <- ifelse(!is.na(picea$HT.23), picea$HT.23, picea$ht.fit)
+xyplot(final.ht~DBH.23|SPP,data=picea)
+xyplot(final.ht ~ DBH.23 | SPP,
+       data = picea,
+       subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+# dealing with outliers in the ht.mod predictions by SPP
+# ended up just manually removing the ht from 2 outlier RS stems
+#picea$hd2 <- ifelse(picea$hd<3,0,picea$hd)
+#picea$hd3 <- ifelse(picea$hd>8,0,picea$hd)
+#picea$diff <- picea$hd2-picea$hd3
+#picea$hd.new <- 
+
+#-------------------------------------------------------------------------------
+#imputing tree heights for all SPP (Wykoff for SPRUCE & FVS for all other SPP)
+#-------------------------------------------------------------------------------
+#require(MEForLab)
+
+#d <- (ht.mod$coefficients$random)
 #ds <- d$PLOT
 #BLOCK <- c("B2","B2","B2","B2","B2",
            #"B2","B2","B2","B2","B2","B2",
@@ -239,34 +260,87 @@ AIC(ht.mod2)
 
 #picea$sp.dum <- ifelse(picea$SPP=="WS"|picea$SPP=="BS"|picea$SPP=="NS"|picea$SPP=="RS",1,0)
 
-#-------------------------------------------------------------------------------
-#imputing tree heights (Wykoff)
-#-------------------------------------------------------------------------------
-require(MEForLab)
-
 # if spruce, use the local model, otherwise use FVS base equations
-picea$local.ht <- ifelse(picea$sp.dum=="1",predict(ht.mod2,picea),0)
-picea$hd <- picea$local.ht/picea$DBH.23
-xyplot(hd~DBH.23|SPP,data=picea,ylim=c(0,20))
-picea$local.ht <- ifelse(picea$hd>12,0,picea$local.ht)
-xyplot(local.ht~DBH.23|SPP,data=picea)
-picea$fvs.ht <- ifelse(picea$local.ht<1,mapply(wykoff.ht,
-                                               SPP=picea$SPP,
-                                               DBH=picea$DBH.23),
-                       0)
-xyplot(fvs.ht~DBH.23|SPP,data=picea)
-picea$HT.23[is.na(picea$HT.23)] <- 0
-picea$model.ht <- ifelse(picea$local.ht>0,picea$local.ht,picea$fvs.ht)
-picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$model.ht)
+#picea$local.ht <- ifelse(picea$sp.dum=="1",predict(ht.mod2,picea),0)
+#picea$hd <- picea$local.ht/picea$DBH.23
+#xyplot(hd~DBH.23|SPP,data=picea,ylim=c(0,20))
+#picea$local.ht <- ifelse(picea$hd>12,0,picea$local.ht)
+#xyplot(local.ht~DBH.23|SPP,data=picea)
+#picea$fvs.ht <- ifelse(picea$local.ht<1,mapply(wykoff.ht,
+                                               #SPP=picea$SPP,
+                                               #DBH=picea$DBH.23),
+                       #0)
+#xyplot(fvs.ht~DBH.23|SPP,data=picea)
+#picea$HT.23[is.na(picea$HT.23)] <- 0
+#picea$model.ht <- ifelse(picea$local.ht>0,picea$local.ht,picea$fvs.ht)
+#picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$model.ht)
 
-
-xyplot(final.ht~DBH.23|SPP,data=picea)
-xyplot(final.ht~DBH.23|CODE,data=picea)
+#xyplot(final.ht~DBH.23|SPP,data=picea)
+#xyplot(final.ht~DBH.23|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
-<<<<<<< HEAD
-#basal area larger (bal) - (tree level)
-=======
+#generating crown ratio model
+#-------------------------------------------------------------------------------
+library(dplyr)
+library(nlme)
+
+# WS SPP Group 3, RS BS NS SPP Group 4
+# FVS NE Variant Coef by SPP Group
+coefficients <- data.frame(
+  spp_group = c(3, 4),
+  b1 = c(7.840, 5.540),
+  b2 = c(0.0057, 0.0072),
+  b3 = c(1.272, 4.200),
+  b4 = c(-0.1420, -0.0530)
+)
+
+picea <- picea %>%
+  mutate(spp_group = case_when(
+    SPP == "WS" ~ 3,  
+    SPP %in% c("NS", "BS", "RS") ~ 4,  
+    TRUE ~ NA_integer_  # NA for other SPP
+  ))
+
+picea <- picea %>%
+  left_join(coefficients, by = "spp_group")  
+
+
+# impute missing crown ratios using the basic formula from FVS NE Variant
+# guessing this doesn't calibrate to the LCR.23 heights measured in the field
+picea <- picea %>%
+  mutate(
+    cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
+    final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
+  )
+
+library(lattice)
+xyplot(final.cr ~ DBH.23 | SPP, data = picea, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+# crown ratio model using nlme/following ht.mod layout
+# could not get to run
+cr.mod <- nlme(
+  LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
+  data = picea,  
+  fixed = b1 + b2 + b3 + b4 ~ spp_group,
+  random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/PLOT/SPP,  
+  na.action = na.pass,  
+  start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420,
+            b1 = 5.540, b2 = 0.0072, b3 = 4.200, b4 = -0.0530), 
+  control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B")
+)
+
+performance(cr.mod)
+summary(cr.mod)
+ranef(cr.mod)
+
+picea$cr.fit2 <- predict(cr.mod, picea)
+xyplot(cr.fit2 ~ DBH.23 | SPP, data = picea)
+
+picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
+xyplot(final.cr2 ~ DBH.23 | SPP, data = picea)
+xyplot(final.cr2 ~ DBH.23 | SPP, data = picea, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+#-------------------------------------------------------------------------------
 #volume calculation at the individual tree level
 #-------------------------------------------------------------------------------
 picea <- picea%>%
@@ -541,7 +615,6 @@ picea <- picea %>%
 view(picea)
 #-------------------------------------------------------------------------------
 #basal area larger (bal)
->>>>>>> 60530122fb525feb4efe55a9448a303fa619a01b
 #-------------------------------------------------------------------------------
 spruce.bal <- picea%>%
   mutate(basal.area = picea$DBH.23^2*0.005454)%>%
