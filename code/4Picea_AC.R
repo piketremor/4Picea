@@ -16,6 +16,7 @@ library(performance)
 library(ggplot2)
 
 setwd("G:/Shared drives/4Picea/4Picea/raw")
+setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 
@@ -263,7 +264,284 @@ xyplot(final.ht~DBH.23|SPP,data=picea)
 xyplot(final.ht~DBH.23|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
+<<<<<<< HEAD
 #basal area larger (bal) - (tree level)
+=======
+#volume calculation at the individual tree level
+#-------------------------------------------------------------------------------
+picea <- picea%>%
+  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
+
+xyplot(vol~DBH.23|CODE,data=picea)
+
+p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
+  geom_boxplot() +
+  ylab("Volume (cubic feet)") +
+  xlab("Species Mixture") +
+  ggtitle("Volume by Species Mixture")
+print(p.vol.code)
+
+# Filter for the species of interest
+picea.ns <- picea %>%
+  filter(SPP == "NS")
+
+# Calculate the volume for just NS across plots
+picea.ns <- picea.ns %>%
+  mutate(vol = mapply(vol.calc, SPP = SPP, DBH = DBH.23, HT = final.ht))
+
+# boxplot
+picea.ns<-filter(picea.ns,CODE != "BW"&CODE !="RW"&CODE !="W")
+p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
+  geom_boxplot()+
+  ylab("Volume (cubic feet)") +
+  xlab("Species")
+
+p.vol
+
+xyplot(vol~DBH.23|CODE,data=picea)
+xyplot(vol~DBH.23|SPP,data=picea)
+#-------------------------------------------------------------------------------
+#overyielding & transgressive overyielding, looking at the plot level
+#-------------------------------------------------------------------------------
+total_volume_by_code <- picea %>%
+  mutate(qmd.2 = qmd(bapa,tpa),
+         rd.2 = bapa/sqrt(qmd.2))%>%
+  group_by(BLOCK, PLOT, CODE) %>%
+  summarise(Total_Volume = sum(vol, na.rm = TRUE) / 3, .groups = 'drop',
+            BAPA = mean(bapa),
+            TPA = mean(tpa),
+            QMD = mean(qmd.2),
+            RD = mean(rd.2))
+
+write.csv(total_volume_by_code,"~/Desktop/4Picea_Standlister.csv")
+
+
+#boxplot of vol by CODE
+boxplot_metrics <- total_volume_by_code %>%
+  group_by(CODE) %>%
+  summarise(
+    Q1 = quantile(Total_Volume, 0.25),
+    Median = median(Total_Volume),
+    Q3 = quantile(Total_Volume, 0.75),
+    Min = min(Total_Volume),
+    Max = max(Total_Volume),
+    .groups = 'drop'
+  )
+
+
+ggplot(total_volume_by_code, aes(x = CODE, y = Total_Volume)) +
+  geom_boxplot() +
+  labs(title = "Volume by Species Mixture",
+       x = "Species Mixture",
+       y = "Volume (ft3)") +
+  theme_minimal()
+
+data <- read.table(text = "
+CODE    VOL
+NW	    57
+BW	    49
+RW	    40
+W	      51
+NR	    48
+BN	    45
+N	      56
+BR	    35
+R	      17
+B	      42
+ ", header = TRUE, stringsAsFactors = FALSE)
+
+
+# Function to calculate overyielding
+
+calculate_overyielding <- function(data) {
+  results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
+  
+  for (i in 1:nrow(data)) {
+    mixture <- data$CODE[i]
+    
+    # Check if the mixture consists of two species (like 'NW')
+    if (nchar(mixture) == 2) {
+      species1 <- substr(mixture, 1, 1)  # First species
+      species2 <- substr(mixture, 2, 2)  # Second species
+      
+      # Get yields for the two monocultures
+      volume1 <- data$VOL[data$CODE == species1]
+      volume2 <- data$VOL[data$CODE == species2]
+      
+      # Get the mixture yield
+      mixture_volume <- data$VOL[i]
+      
+      # Calculate the average monoculture volume
+      if (length(volume1) > 0 && length(volume2) > 0) {
+        average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
+        overyielding <- mixture_volume / average_volume
+        
+        # Store the results
+        results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
+      }
+    }
+  }
+  
+  return(results)
+}
+
+overyielding_results <- calculate_overyielding(data)
+print(overyielding_results)
+
+ggplot(overyielding_results, aes(x = Mixture, y = Overyielding)) +
+  geom_bar(stat = "identity", fill = "grey") +
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at overyielding = 1
+  labs(title = "Overyielding by Species Mixture", x = "Species Mixture", y = "Overyielding Value") +
+  theme_minimal()
+
+# Function to calculate transgressive overyielding
+calculate_transgressive_overyielding <- function(data) {
+  results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
+  
+  for (i in 1:nrow(data)) {
+    mixture <- data$CODE[i]
+    
+    # Check if the mixture consists of two species (like 'NW')
+    if (nchar(mixture) == 2) {
+      species1 <- substr(mixture, 1, 1)  # First species
+      species2 <- substr(mixture, 2, 2)  # Second species
+      
+      # Get yields for the two monocultures
+      volume1 <- data$VOL[data$CODE == species1]
+      volume2 <- data$VOL[data$CODE == species2]
+      
+      # Get the mixture yield
+      mixture_volume <- data$VOL[i]
+      
+      # Calculate the maximum monoculture volume
+      if (length(volume1) > 0 && length(volume2) > 0) {
+        max_volume <- max(volume1, volume2, na.rm = TRUE)
+        transgressive_overyielding <- mixture_volume / max_volume
+        
+        # Store the results
+        results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
+      }
+    }
+  }
+  
+  return(results)
+}
+
+transgressive_overyielding_results <- calculate_transgressive_overyielding(data)
+print(transgressive_overyielding_results)
+
+ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Overyielding)) +
+  geom_bar(stat = "identity", fill = "grey") +  # Use geom_bar for bar chart
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at 1
+  labs(title = "Transgressive Overyielding by Species Mixture", 
+       x = "Species Mixture", 
+       y = "Transgressive Overyielding Value") +
+  theme_minimal()
+
+#-------------------------------------------------------------------------------
+#Stem Form: volume deductions 
+#Remember this is only for height trees, must apply to rest of imputed heights
+#-------------------------------------------------------------------------------
+# Step 1: generate LR equation to determine what attributes to a defect being present 
+
+picea <- picea %>%
+  mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
+
+plot(picea$defect_present)
+
+#NAs make sense since, filter for trees with HTs and Stem Form taken
+ggplot(picea, aes(x = as.factor(defect_present))) +
+  geom_bar() +
+  labs(x = "Defect Present (0 = No, 1 = Yes)", y = "Count") +
+  ggtitle("Bar Chart of Defect Presence") +
+  theme_minimal()
+
+
+# Step 2: Defect 1,0 if 1 then go to glm model and account for how much volume is deducted based on SPP, Ht.23, DBH,23, etc. 
+
+#histogram of T_DEDUCT distrbution from 0-100
+picea <- picea %>%
+  mutate(T_DEDUCT = as.numeric(T_DEDUCT),  # Convert T_DEDUCT to numeric
+         defect_present = ifelse(T_DEDUCT > 0, 1, 0))
+
+#keeping only subset of trees with values in T_DEDUCT column 
+deduct <- picea %>%
+  filter(T_DEDUCT >= 0 & T_DEDUCT <= 100)
+
+ggplot(deduct, aes(x = T_DEDUCT)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
+  labs(x = "T_DEDUCT", y = "Count") +
+  ggtitle("Histogram of T_DEDUCT Values (0-100)") +
+  theme_minimal() +
+  xlim(0, 100) +  
+  ylim(0, 30)  
+
+
+mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
+            data = picea, 
+            family = binomial(link = "logit"))
+summary(mod1)
+
+mod2 <- glm(defect_present ~ DBH.23 + HT.23 + SPP, 
+            data = picea, 
+            family = binomial(link = "logit"))
+summary(mod2)
+
+mod3 <- glm(defect_present ~ DBH.23 + SPP, 
+            data = picea, 
+            family = binomial(link = "logit"))
+summary(mod3)
+
+require(lme4)
+mod4 <- glmer(defect_present ~ DBH.23 + (1 |SPP), 
+              data = picea, 
+              family = binomial(link = "logit"))
+
+
+AIC(mod1, mod2, mod3, mod4)
+
+# Step 3: use model to to impute T_DEDUCT for all stems
+
+# Step 4: vol - T_DEDUCT = fin.vol
+
+################################ OR ############################################
+
+# Step 1: model with T_DEDUCT on height trees
+# Deduct T_DEDUCT from vol where T_DEDUCT is available
+picea <- picea %>%
+  mutate(vol_adj = ifelse(!is.na(T_DEDUCT), vol * (1 - T_DEDUCT / 100), vol))
+
+# Fit a model to predict T_DEDUCT
+mod10 <- glm(T_DEDUCT ~ DBH.23 + SPP, 
+                      data = picea, 
+                      na.action = na.exclude)  
+summary(mod10)
+
+mod11 <- glm(T_DEDUCT ~ DBH.23 * SPP, 
+             data = picea, 
+             na.action = na.exclude)
+
+mod12 <- glm(T_DEDUCT ~ DBH.23 + HT.23 + SPP + Proportion, 
+             data = picea, 
+             na.action = na.exclude)  
+summary(mod12)
+
+AIC(mod10, mod11, mod12)
+
+# Step 2: apply that model to the rest of the trees
+# Predict T_DEDUCT for rows without it
+picea$predicted_T_DEDUCT <- predict(mod12, newdata = picea, type = "response")
+
+# Deduct predicted T_DEDUCT from vol for those rows
+picea <- picea %>%
+  mutate(vol_adj = ifelse(is.na(T_DEDUCT) & !is.na(predicted_T_DEDUCT), 
+                               vol * (1 - predicted_T_DEDUCT / 100), 
+                               vol_adj))
+
+view(picea)
+#-------------------------------------------------------------------------------
+#basal area larger (bal)
+>>>>>>> 60530122fb525feb4efe55a9448a303fa619a01b
 #-------------------------------------------------------------------------------
 spruce.bal <- picea%>%
   mutate(basal.area = picea$DBH.23^2*0.005454)%>%
