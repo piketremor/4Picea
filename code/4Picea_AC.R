@@ -424,62 +424,15 @@ p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
 p.vol
 
 #-------------------------------------------------------------------------------
-#variable selection procedures using VSURF package for dep as binary variable
+# Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
 library(randomForest)
 library(VSURF)
 library(caTools)
 
-picea$ded <- ifelse(picea$T_DEDUCT > 0, 1, 0) # look at T_DEDUCT as a binary outcome 0 or 1
+picea$deductclass <- 25*as.integer((picea$T_DEDUCT+(25/2))/25)
 
-picea_vsurf <- picea %>%
-  filter(!is.na(ded) & is.numeric(ded))
-
-response <- "ded"  
-predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
-                      "tri", "tpi", "roughness", "slope", "aspect", "flowdir", "tmin", "tmean", 
-                      "tmax", "dew", "vpdmax", "vpdmin", "McNab", "Bolstad", "Profile", "Planform", 
-                      "Winds10", "Winds50", "SWI", "RAD", "ppt", "Parent", "Lithic", "Redox", 
-                      "dep", "ex.k", "nit", "SWC2", "MeanWD", "Proportion", "Min_depth", "WD2000", 
-                      "WD2020", "WHC", "ex.mg", "ex.ca", "ph", "bapa", "tpa", "hd", "bal", "htl", 
-                      "vicary.si", "steinman.si", "topht", "qmd", "rdi", "rs", "sdi", "vol")
-
-picea_vsurf <- picea_vsurf[, c(response, predictors)]
-
-picea_vsurf[is.na(picea_vsurf)] <- 0
-
-set.seed(123)  # For reproducibility
-split <- sample.split(picea_vsurf$ded, SplitRatio = 0.6666666666666) 
-train <- subset(picea_vsurf, split == TRUE)
-test <- subset(picea_vsurf, split == FALSE)
-
-# dealing with NAs, inf, NAN
-train[] <- lapply(train, function(x) { 
-  if(is.numeric(x)) {
-    x[is.nan(x)] <- 0
-    x[is.infinite(x)] <- 0
-  }
-  return(x)
-})
-
-train[is.na(train)] <- 0 
-
-vsurf <- VSURF(train[, predictors], train[, response], parallel = TRUE, ncores = 3)
-
-vsurf$varselect.pred
-
-names(train[,1:58])
-
-selected_var_names <- c("SPP", "LAI", "HCB.23", "HT.23", "bal")
-
-#-------------------------------------------------------------------------------
-# Variable selection procedures using VSURF package for a continuous response variable
-#-------------------------------------------------------------------------------
-library(randomForest)
-library(VSURF)
-library(caTools)
-
-response <- "T_DEDUCT"  
+response <- "deductclass"  
 predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
                 "tri", "tpi", "roughness", "slope", "aspect", "flowdir", "tmin", "tmean", 
                 "tmax", "dew", "vpdmax", "vpdmin", "McNab", "Bolstad", "Profile", "Planform", 
@@ -488,17 +441,16 @@ predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "el
                 "WD2020", "WHC", "ex.mg", "ex.ca", "ph", "bapa", "tpa", "hd", "bal", "htl", 
                 "vicary.si", "steinman.si", "topht", "qmd", "rdi", "rs", "sdi", "vol")
 
-picea_vsurf <- picea %>%
-  filter(!is.na(T_DEDUCT) & is.numeric(T_DEDUCT)) %>%
+picea_varsel <- picea %>%
+  filter(!is.na(deductclass) & is.numeric(deductclass)) %>%
   select(c(response, predictors))
-picea_vsurf[is.na(picea_vsurf)] <- 0
+picea_varsel[is.na(picea_varsel)] <- 0
 
 # split data into train and test sets
 set.seed(123)  # For reproducibility
-split <- sample.split(picea_vsurf$T_DEDUCT, SplitRatio = 0.6666666666666) 
-train <- subset(picea_vsurf, split == TRUE)
-test <- subset(picea_vsurf, split == FALSE)
-
+split <- sample.split(picea_varsel$deductclass, SplitRatio = 0.6666666666666) 
+train <- subset(picea_varsel, split == TRUE)
+test <- subset(picea_varsel, split == FALSE)
 
 train[] <- lapply(train, function(x) { 
   if(is.numeric(x)) {
@@ -514,9 +466,27 @@ vsurf$varselect.pred
 
 names(train[,1:58])
 
-selected_var_cont <- c("SPP", "Min_depth", "bal")
+selected_var_cont <- c(bal+sdi+rdi+Min_depth+steinman.si,HT.23)
 
-                  
+#-------------------------------------------------------------------------------
+#regsubsets variable selection
+#-------------------------------------------------------------------------------
+library(leaps)
+
+picea_varsel2 <- picea %>%
+  filter(!is.na(deductclass) & is.numeric(deductclass))
+picea_varsel2[is.na(picea_varsel2)] <- 0
+
+
+models.iv <- regsubsets(deductclass~SPP + DBH.23 + HT.23 + HCB.23 + LCR.23 + LAI + CODE + elevation + 
+                        tri + tpi + roughness + slope + aspect + flowdir + tmin + tmean + 
+                        tmax + dew + vpdmax + vpdmin + McNab + Bolstad + Profile + Planform + 
+                        Winds10 + Winds50 + SWI + RAD + ppt + Parent + Lithic + Redox + 
+                        dep + ex.k + nit + SWC2 + MeanWD + Proportion + Min_depth + WD2000 + 
+                        WD2020 + WHC + ex.mg + ex.ca + ph + bapa + tpa + hd + bal+ htl + 
+                        vicary.si + steinman.si + topht + qmd + rdi + rs + sdi + vol,data=picea_varsel2,really.big = TRUE,method="exhaustive")
+
+summary(models.iv)
 #-------------------------------------------------------------------------------
 #volume deduction
 #-------------------------------------------------------------------------------
@@ -524,27 +494,22 @@ picea2 <- filter(picea,HT.23!="NA")
 plot(density(na.omit(picea2$T_DEDUCT))) #look at a zero-inflated model
 picea2$T_DEDUCT[is.na(picea2$T_DEDUCT)] <- 0
 
-unique(picea2$T_DEDUCT)
-
 hist(picea2$T_DEDUCT)
 xyplot(T_DEDUCT~DBH.23|CODE,data=picea2) #most deductions in plots with NS, weevil
 
-picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
-
+unique(picea2$T_DEDUCT)
+#picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
 hist(picea2$deductclass)
 
 mod1 <- glmer(deductclass~SPP + Min_depth + bal+(1|BLOCK), data=picea2,family="poisson") #mixed poisson
 summary(mod1)
 
-str(picea2)
-
-mod2 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
+mod2 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK), #mixed zero-inflated poisson
                 data=picea2,
                 ziformula = ~.,
                 family=poisson,
                 na.action = "na.omit")
 summary(mod2)
-
 
 
 mod3 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
@@ -556,37 +521,19 @@ mod3 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
 AIC(mod1,mod2,mod3)
 
 
+# Matt Russel zero-inflated models
+library(pscl)
+
+mod4 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si,
+                  data = picea2)
+summary(mod4)
+
+mod5 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si, 
+                   dist = "negbin", data = picea2)
+summary(mod5)
 
 
-library(glmmTMB)
-ded.mod <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + SPP + HCB.23 + HT.23 + LAI + bal + Min_depth,
-                   data = picea2,
-                   ziformula = ~ SPP + HCB.23 + HT.23 + LAI + bal + Min_depth,
-                   family = ziGamma(link = "log"), #possion or log?
-                   na.action = "na.omit")
 
-
-summary(ded.mod)
-plot(residuals(ded.mod))
-AIC(ded.mod) #issue is because of SPP as categorical var I think
-
-ded.mod2 <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + HCB.23 + HT.23 + LAI + bal + Min_depth,
-                   data = picea2,
-                   ziformula = ~  HCB.23 + HT.23 + LAI + bal + Min_depth,
-                   family = ziGamma(link = "log"), #possion or log?
-                   na.action = "na.omit")
-summary(ded.mod2)
-plot(residuals(ded.mod2))
-AIC(ded.mod2) #3865.994
-
-ded.mod3 <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + HCB.23 + HT.23 + LAI + bal + Min_depth,
-                    data = picea2,
-                    ziformula = ~  HCB.23 + HT.23 + LAI bal + Min_depth,
-                    family = ziGamma(link = "log"), #possion or log?
-                    na.action = "na.omit")
-summary(ded.mod3)
-plot(residuals(ded.mod3))
-AIC(ded.mod3)
 #-------------------------------------------------------------------------------
 #overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
