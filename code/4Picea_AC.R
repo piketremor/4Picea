@@ -477,6 +477,14 @@ picea_varsel2 <- picea %>%
   filter(!is.na(deductclass) & is.numeric(deductclass))
 picea_varsel2[is.na(picea_varsel2)] <- 0
 
+picea_varsel2[] <- lapply(picea_varsel2, function(x) { 
+  if(is.numeric(x)) {
+    x[is.nan(x)] <- 0
+    x[is.infinite(x)] <- 0
+  }
+  return(x)
+})
+
 
 models.iv <- regsubsets(deductclass~SPP + DBH.23 + HT.23 + HCB.23 + LCR.23 + LAI + CODE + elevation + 
                         tri + tpi + roughness + slope + aspect + flowdir + tmin + tmean + 
@@ -487,6 +495,9 @@ models.iv <- regsubsets(deductclass~SPP + DBH.23 + HT.23 + HCB.23 + LCR.23 + LAI
                         vicary.si + steinman.si + topht + qmd + rdi + rs + sdi + vol,data=picea_varsel2,really.big = TRUE,method="exhaustive")
 
 summary(models.iv)
+
+# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, flowdir, tmax, dew, WD2000, bal, htl, qmd
+# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, tmax, bal, htl, qmd
 #-------------------------------------------------------------------------------
 #volume deduction
 #-------------------------------------------------------------------------------
@@ -498,7 +509,7 @@ hist(picea2$T_DEDUCT)
 xyplot(T_DEDUCT~DBH.23|CODE,data=picea2) #most deductions in plots with NS, weevil
 
 unique(picea2$T_DEDUCT)
-#picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
+picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
 hist(picea2$deductclass)
 
 mod1 <- glmer(deductclass~SPP + Min_depth + bal+(1|BLOCK), data=picea2,family="poisson") #mixed poisson
@@ -524,6 +535,7 @@ AIC(mod1,mod2,mod3)
 # Matt Russel zero-inflated models
 library(pscl)
 
+# vsurf 
 mod4 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si,
                   data = picea2)
 summary(mod4)
@@ -532,8 +544,28 @@ mod5 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si,
                    dist = "negbin", data = picea2)
 summary(mod5)
 
+AIC(mod4, mod5)
+
+# regsubsets
+
+mod6 <- zeroinfl(deductclass ~ SPP + CODE + flowdir + tmax + WD2000 + dew + bal + htl  + qmd,
+                 data = picea2)
+summary(mod6)
+
+mod7 <- zeroinfl(deductclass ~ tmax+dew+flowdir+bal+qmd,
+                 data = picea2)
+summary(mod7)
+
+AIC(mod6, mod7, mod8)
 
 
+mod8 <- zeroinfl(deductclass ~ tmax + dew + flowdir + qmd + bal, 
+                 dist = "negbin", data = picea2)
+summary(mod8)
+AIC(mod8)
+
+# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, flowdir, tmax, dew, WD2000, bal, htl, qmd
+# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, tmax, bal, htl, qmd
 #-------------------------------------------------------------------------------
 #overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
