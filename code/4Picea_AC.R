@@ -2,7 +2,7 @@
 #install.packages("G:/My Drive/MEForLab",
                  #repos = NULL,
                  #type = "source")
-#devtools::install_github("piketremor/MEForLab")
+devtools::install_github("piketremor/MEForLab")
 
 library(MEForLab)
 library(devtools)
@@ -19,13 +19,15 @@ setwd("G:/Shared drives/4Picea/4Picea/raw")
 setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
+site <- read.csv("4Picea_30m.csv")
 
 #-------------------------------------------------------------------------------
-#join stemform to picea by BLOCK, PLOT, TREE #
+#join stemform to picea by BLOCK, PLOT, TREE #join site to picea by BLOCK, PLOT
 #-------------------------------------------------------------------------------
-picea$TREE <- as.character(picea$TREE)
-stemform$TREE <- as.character(stemform$TREE)
-picea <- left_join(picea, stemform, by = c("BLOCK", "PLOT", "TREE", "SPP"))
+picea <- picea %>%
+  mutate(TREE = as.character(TREE)) %>%
+  left_join(stemform %>% mutate(TREE = as.character(TREE)), by = c("BLOCK", "PLOT", "TREE", "SPP")) %>%
+  left_join(site, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
 #clean data
@@ -217,7 +219,7 @@ ranef(ht.mod)
 # preditc ht.mod on picea to fit all heights, then fit final heights
 picea$ht.fit <- predict(ht.mod, picea)
 xyplot(ht.fit~DBH.23|SPP,data=picea)
-picea$hd <- picea$ht.fit/picea$DBH.23
+picea$hd <- picea$ht.fit/picea$DBH.23 #height diameter ratio
 xyplot(hd~DBH.23|SPP,data=picea)
 picea$final.ht <- ifelse(!is.na(picea$HT.23), picea$HT.23, picea$ht.fit)
 xyplot(final.ht~DBH.23|SPP,data=picea)
@@ -278,74 +280,124 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #xyplot(final.ht~DBH.23|SPP,data=picea)
 #xyplot(final.ht~DBH.23|CODE,data=picea)
 
+
 #-------------------------------------------------------------------------------
-#generating crown ratio model
+#basal area larger (bal) - (tree level)
 #-------------------------------------------------------------------------------
-library(dplyr)
-library(nlme)
-
-# WS SPP Group 3, RS BS NS SPP Group 4
-# FVS NE Variant Coef by SPP Group
-coefficients <- data.frame(
-  spp_group = c(3, 4),
-  b1 = c(7.840, 5.540),
-  b2 = c(0.0057, 0.0072),
-  b3 = c(1.272, 4.200),
-  b4 = c(-0.1420, -0.0530)
-)
+spruce.bal <- picea%>%
+  mutate(basal.area = picea$DBH.23^2*0.005454)%>%
+  mutate(bapa = basal.area*10)%>%
+  group_by(uid)%>%
+  arrange(desc(DBH.23),.by_group = TRUE)%>%
+  mutate(bal = lag(cumsum(bapa)))
+spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
+xyplot(bal~DBH.23|SPP,data=spruce.bal)
+xyplot(bal~DBH.23|CODE,data=spruce.bal)
 
 picea <- picea %>%
-  mutate(spp_group = case_when(
-    SPP == "WS" ~ 3,  
-    SPP %in% c("NS", "BS", "RS") ~ 4,  
-    TRUE ~ NA_integer_  # NA for other SPP
-  ))
+  left_join(spruce.bal %>% select(uid, BLOCK, PLOT, TREE, bal), 
+            by = c("uid", "BLOCK", "PLOT", "TREE"))
+
+#-------------------------------------------------------------------------------
+#height larger (htl) - (tree level)
+#-------------------------------------------------------------------------------
+spruce.htl <- picea%>%
+  group_by(uid)%>%
+  arrange(desc(final.ht),.by_group = TRUE)%>%
+  mutate(htl = lag(cumsum(final.ht)))
+spruce.htl$htl[is.na(spruce.htl$htl)] <- 0
+xyplot(htl~final.ht|SPP,data=spruce.htl)
+xyplot(htl~final.ht|CODE,data=spruce.htl)
 
 picea <- picea %>%
-  left_join(coefficients, by = "spp_group")  
-
-
-# impute missing crown ratios using the basic formula from FVS NE Variant
-# guessing this doesn't calibrate to the LCR.23 heights measured in the field
+  left_join(spruce.htl %>% select(uid, BLOCK, PLOT, TREE, htl), 
+            by = c("uid", "BLOCK", "PLOT", "TREE"))
+#-------------------------------------------------------------------------------
+#Site Index - (calculated at tree level, summarize by Block and Plot)
+#-------------------------------------------------------------------------------
+sum(is.na(picea$final.ht))  # Number of missing values in final.ht
 picea <- picea %>%
-  mutate(
-    cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
-    final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
-  )
+  filter(!is.na(final.ht))
 
-library(lattice)
-xyplot(final.cr ~ DBH.23 | SPP, data = picea, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+#vicary.site
+picea <- picea%>%
+  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=final.ht, age=28))
 
-# crown ratio model using nlme/following ht.mod layout
-# could not get to run
-cr.mod <- nlme(
-  LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
-  data = picea,  
-  fixed = b1 + b2 + b3 + b4 ~ spp_group,
-  random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/PLOT/SPP,  
-  na.action = na.pass,  
-  start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420,
-            b1 = 5.540, b2 = 0.0072, b3 = 4.200, b4 = -0.0530), 
-  control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B")
-)
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(mean.vicary.si = mean(vicary.si, na.rm = TRUE))
 
-performance(cr.mod)
-summary(cr.mod)
-ranef(cr.mod)
+#steinman.site
+picea <- picea%>%
+  mutate(steinman.si=mapply(steinman.site, SPP="RS", HT=final.ht, AGE=28))
 
-picea$cr.fit2 <- predict(cr.mod, picea)
-xyplot(cr.fit2 ~ DBH.23 | SPP, data = picea)
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
+#-------------------------------------------------------------------------------
+#Top Height (vicary height) - (plot level)
+#-------------------------------------------------------------------------------
+picea <- picea%>%
+  mutate(topht=mapply(vicary.height,SPP="RS", age=28, si=vicary.si))
 
-picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
-xyplot(final.cr2 ~ DBH.23 | SPP, data = picea)
-xyplot(final.cr2 ~ DBH.23 | SPP, data = picea, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(spruce.topht = mean(topht, na.rm = TRUE))
+
+#-------------------------------------------------------------------------------
+#qmd - (plot level)
+#-------------------------------------------------------------------------------
+spruce.qmd <- picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(qmd = sqrt(sum(DBH.23^2, na.rm = TRUE) / n()), .groups = "drop")
+
+mean(spruce.qmd$qmd)
+
+picea <- picea %>%
+  left_join(spruce.qmd %>% select(BLOCK, PLOT, qmd), 
+            by = c("BLOCK", "PLOT"))
+
+#-------------------------------------------------------------------------------
+#relative density index - (plot level)
+#-------------------------------------------------------------------------------
+spruce.rd <- picea %>%
+  mutate(rdi = mapply(relative.density.index, bapa = bapa, qmd = qmd))
+
+spruce.rd_summary <- spruce.rd %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(rdi = mean(rdi, na.rm = TRUE))  # Ensure only one value per BLOCK-PLOT
+
+picea <- picea %>%
+  left_join(spruce.rd_summary, by = c("BLOCK", "PLOT"))
+
+#-------------------------------------------------------------------------------
+#relative spacing - (plot level)
+#-------------------------------------------------------------------------------
+str(relative.spacing)
+
+picea <- picea %>%
+  mutate(rs=mapply(relative.spacing,tpa=tpa, domht=topht))
+
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise_at(vars(rs), list(name = mean))
+#-------------------------------------------------------------------------------
+#stand density index - (plot level)
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(sdi=mapply(stand.density.index,tpa=tpa, qmd=qmd))
+
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise_at(vars(sdi), list(name = mean))
+
+xyplot(qmd~tpa|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
 #volume calculation at the individual tree level
 #-------------------------------------------------------------------------------
 picea <- picea%>%
   mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
-
 xyplot(vol~DBH.23|CODE,data=picea)
 
 p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
@@ -355,15 +407,14 @@ p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
   ggtitle("Volume by Species Mixture")
 print(p.vol.code)
 
-# Filter for the species of interest
+# filter for the species of interest
 picea.ns <- picea %>%
   filter(SPP == "NS")
 
-# Calculate the volume for just NS across plots
+# calculate the volume for just NS across plots
 picea.ns <- picea.ns %>%
   mutate(vol = mapply(vol.calc, SPP = SPP, DBH = DBH.23, HT = final.ht))
 
-# boxplot
 picea.ns<-filter(picea.ns,CODE != "BW"&CODE !="RW"&CODE !="W")
 p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
   geom_boxplot()+
@@ -372,8 +423,170 @@ p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
 
 p.vol
 
-xyplot(vol~DBH.23|CODE,data=picea)
-xyplot(vol~DBH.23|SPP,data=picea)
+#-------------------------------------------------------------------------------
+#variable selection procedures using VSURF package for dep as binary variable
+#-------------------------------------------------------------------------------
+library(randomForest)
+library(VSURF)
+library(caTools)
+
+picea$ded <- ifelse(picea$T_DEDUCT > 0, 1, 0) # look at T_DEDUCT as a binary outcome 0 or 1
+
+picea_vsurf <- picea %>%
+  filter(!is.na(ded) & is.numeric(ded))
+
+response <- "ded"  
+predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
+                      "tri", "tpi", "roughness", "slope", "aspect", "flowdir", "tmin", "tmean", 
+                      "tmax", "dew", "vpdmax", "vpdmin", "McNab", "Bolstad", "Profile", "Planform", 
+                      "Winds10", "Winds50", "SWI", "RAD", "ppt", "Parent", "Lithic", "Redox", 
+                      "dep", "ex.k", "nit", "SWC2", "MeanWD", "Proportion", "Min_depth", "WD2000", 
+                      "WD2020", "WHC", "ex.mg", "ex.ca", "ph", "bapa", "tpa", "hd", "bal", "htl", 
+                      "vicary.si", "steinman.si", "topht", "qmd", "rdi", "rs", "sdi", "vol")
+
+picea_vsurf <- picea_vsurf[, c(response, predictors)]
+
+picea_vsurf[is.na(picea_vsurf)] <- 0
+
+set.seed(123)  # For reproducibility
+split <- sample.split(picea_vsurf$ded, SplitRatio = 0.6666666666666) 
+train <- subset(picea_vsurf, split == TRUE)
+test <- subset(picea_vsurf, split == FALSE)
+
+# dealing with NAs, inf, NAN
+train[] <- lapply(train, function(x) { 
+  if(is.numeric(x)) {
+    x[is.nan(x)] <- 0
+    x[is.infinite(x)] <- 0
+  }
+  return(x)
+})
+
+train[is.na(train)] <- 0 
+
+vsurf <- VSURF(train[, predictors], train[, response], parallel = TRUE, ncores = 3)
+
+vsurf$varselect.pred
+
+names(train[,1:58])
+
+selected_var_names <- c("SPP", "LAI", "HCB.23", "HT.23", "bal")
+
+#-------------------------------------------------------------------------------
+# Variable selection procedures using VSURF package for a continuous response variable
+#-------------------------------------------------------------------------------
+library(randomForest)
+library(VSURF)
+library(caTools)
+
+response <- "T_DEDUCT"  
+predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
+                "tri", "tpi", "roughness", "slope", "aspect", "flowdir", "tmin", "tmean", 
+                "tmax", "dew", "vpdmax", "vpdmin", "McNab", "Bolstad", "Profile", "Planform", 
+                "Winds10", "Winds50", "SWI", "RAD", "ppt", "Parent", "Lithic", "Redox", 
+                "dep", "ex.k", "nit", "SWC2", "MeanWD", "Proportion", "Min_depth", "WD2000", 
+                "WD2020", "WHC", "ex.mg", "ex.ca", "ph", "bapa", "tpa", "hd", "bal", "htl", 
+                "vicary.si", "steinman.si", "topht", "qmd", "rdi", "rs", "sdi", "vol")
+
+picea_vsurf <- picea %>%
+  filter(!is.na(T_DEDUCT) & is.numeric(T_DEDUCT)) %>%
+  select(c(response, predictors))
+picea_vsurf[is.na(picea_vsurf)] <- 0
+
+# split data into train and test sets
+set.seed(123)  # For reproducibility
+split <- sample.split(picea_vsurf$T_DEDUCT, SplitRatio = 0.6666666666666) 
+train <- subset(picea_vsurf, split == TRUE)
+test <- subset(picea_vsurf, split == FALSE)
+
+
+train[] <- lapply(train, function(x) { 
+  if(is.numeric(x)) {
+    x[is.nan(x)] <- 0
+    x[is.infinite(x)] <- 0
+  }
+  return(x)
+})
+
+vsurf <- VSURF(train[, predictors], train[, response], parallel = TRUE, ncores = 3)
+
+vsurf$varselect.pred
+
+names(train[,1:58])
+
+selected_var_cont <- c("SPP", "Min_depth", "bal")
+
+                  
+#-------------------------------------------------------------------------------
+#volume deduction
+#-------------------------------------------------------------------------------
+picea2 <- filter(picea,HT.23!="NA")
+plot(density(na.omit(picea2$T_DEDUCT))) #look at a zero-inflated model
+picea2$T_DEDUCT[is.na(picea2$T_DEDUCT)] <- 0
+
+unique(picea2$T_DEDUCT)
+
+hist(picea2$T_DEDUCT)
+xyplot(T_DEDUCT~DBH.23|CODE,data=picea2) #most deductions in plots with NS, weevil
+
+picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
+
+hist(picea2$deductclass)
+
+mod1 <- glmer(deductclass~SPP + Min_depth + bal+(1|BLOCK), data=picea2,family="poisson") #mixed poisson
+summary(mod1)
+
+str(picea2)
+
+mod2 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
+                data=picea2,
+                ziformula = ~.,
+                family=poisson,
+                na.action = "na.omit")
+summary(mod2)
+
+
+
+mod3 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
+                data=picea2,
+                ziformula = ~SPP,
+                family=nbinom1,
+                na.action = "na.omit")
+
+AIC(mod1,mod2,mod3)
+
+
+
+
+library(glmmTMB)
+ded.mod <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + SPP + HCB.23 + HT.23 + LAI + bal + Min_depth,
+                   data = picea2,
+                   ziformula = ~ SPP + HCB.23 + HT.23 + LAI + bal + Min_depth,
+                   family = ziGamma(link = "log"), #possion or log?
+                   na.action = "na.omit")
+
+
+summary(ded.mod)
+plot(residuals(ded.mod))
+AIC(ded.mod) #issue is because of SPP as categorical var I think
+
+ded.mod2 <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + HCB.23 + HT.23 + LAI + bal + Min_depth,
+                   data = picea2,
+                   ziformula = ~  HCB.23 + HT.23 + LAI + bal + Min_depth,
+                   family = ziGamma(link = "log"), #possion or log?
+                   na.action = "na.omit")
+summary(ded.mod2)
+plot(residuals(ded.mod2))
+AIC(ded.mod2) #3865.994
+
+ded.mod3 <- glmmTMB(T_DEDUCT ~ (1|BLOCK/PLOT) + HCB.23 + HT.23 + LAI + bal + Min_depth,
+                    data = picea2,
+                    ziformula = ~  HCB.23 + HT.23 + LAI bal + Min_depth,
+                    family = ziGamma(link = "log"), #possion or log?
+                    na.action = "na.omit")
+summary(ded.mod3)
+plot(residuals(ded.mod3))
+AIC(ded.mod3)
 #-------------------------------------------------------------------------------
 #overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
@@ -511,508 +724,3 @@ ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Ov
        x = "Species Mixture", 
        y = "Transgressive Overyielding Value") +
   theme_minimal()
-
-#-------------------------------------------------------------------------------
-#Stem Form: volume deductions 
-#Remember this is only for height trees, must apply to rest of imputed heights
-#-------------------------------------------------------------------------------
-# Step 1: generate LR equation to determine what attributes to a defect being present 
-
-picea <- picea %>%
-  mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
-
-plot(picea$defect_present)
-
-#NAs make sense since, filter for trees with HTs and Stem Form taken
-ggplot(picea, aes(x = as.factor(defect_present))) +
-  geom_bar() +
-  labs(x = "Defect Present (0 = No, 1 = Yes)", y = "Count") +
-  ggtitle("Bar Chart of Defect Presence") +
-  theme_minimal()
-
-
-# Step 2: Defect 1,0 if 1 then go to glm model and account for how much volume is deducted based on SPP, Ht.23, DBH,23, etc. 
-
-#histogram of T_DEDUCT distrbution from 0-100
-picea <- picea %>%
-  mutate(T_DEDUCT = as.numeric(T_DEDUCT),  # Convert T_DEDUCT to numeric
-         defect_present = ifelse(T_DEDUCT > 0, 1, 0))
-
-#keeping only subset of trees with values in T_DEDUCT column 
-deduct <- picea %>%
-  filter(T_DEDUCT >= 0 & T_DEDUCT <= 100)
-
-ggplot(deduct, aes(x = T_DEDUCT)) +
-  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
-  labs(x = "T_DEDUCT", y = "Count") +
-  ggtitle("Histogram of T_DEDUCT Values (0-100)") +
-  theme_minimal() +
-  xlim(0, 100) +  
-  ylim(0, 30)  
-
-
-mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod1)
-
-mod2 <- glm(defect_present ~ DBH.23 + HT.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod2)
-
-mod3 <- glm(defect_present ~ DBH.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod3)
-
-require(lme4)
-mod4 <- glmer(defect_present ~ DBH.23 + (1 |SPP), 
-              data = picea, 
-              family = binomial(link = "logit"))
-
-
-AIC(mod1, mod2, mod3, mod4)
-
-# Step 3: use model to to impute T_DEDUCT for all stems
-
-# Step 4: vol - T_DEDUCT = fin.vol
-
-################################ OR ############################################
-
-# Step 1: model with T_DEDUCT on height trees
-# Deduct T_DEDUCT from vol where T_DEDUCT is available
-picea <- picea %>%
-  mutate(vol_adj = ifelse(!is.na(T_DEDUCT), vol * (1 - T_DEDUCT / 100), vol))
-
-# Fit a model to predict T_DEDUCT
-mod10 <- glm(T_DEDUCT ~ DBH.23 + SPP, 
-                      data = picea, 
-                      na.action = na.exclude)  
-summary(mod10)
-
-mod11 <- glm(T_DEDUCT ~ DBH.23 * SPP, 
-             data = picea, 
-             na.action = na.exclude)
-
-mod12 <- glm(T_DEDUCT ~ DBH.23 + HT.23 + SPP + Proportion, 
-             data = picea, 
-             na.action = na.exclude)  
-summary(mod12)
-
-AIC(mod10, mod11, mod12)
-
-# Step 2: apply that model to the rest of the trees
-# Predict T_DEDUCT for rows without it
-picea$predicted_T_DEDUCT <- predict(mod12, newdata = picea, type = "response")
-
-# Deduct predicted T_DEDUCT from vol for those rows
-picea <- picea %>%
-  mutate(vol_adj = ifelse(is.na(T_DEDUCT) & !is.na(predicted_T_DEDUCT), 
-                               vol * (1 - predicted_T_DEDUCT / 100), 
-                               vol_adj))
-
-view(picea)
-#-------------------------------------------------------------------------------
-#basal area larger (bal)
-#-------------------------------------------------------------------------------
-spruce.bal <- picea%>%
-  mutate(basal.area = picea$DBH.23^2*0.005454)%>%
-  mutate(bapa = basal.area*10)%>%
-  group_by(uid)%>%
-  arrange(desc(DBH.23),.by_group = TRUE)%>%
-  mutate(bal = lag(cumsum(bapa)))
-spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
-xyplot(bal~DBH.23|SPP,data=spruce.bal)
-xyplot(bal~DBH.23|CODE,data=spruce.bal)
-
-#-------------------------------------------------------------------------------
-#height larger (htl) - (tree level)
-#-------------------------------------------------------------------------------
-picea <- picea%>%
-  group_by(uid)%>%
-  arrange(desc(final.ht),.by_group = TRUE)%>%
-  mutate(htl = lag(cumsum(final.ht)))
-picea$htl[is.na(picea$htl)] <- 0
-xyplot(htl~final.ht|SPP,data=picea)
-xyplot(htl~final.ht|CODE,data=picea)
-
-#-------------------------------------------------------------------------------
-#height/diameter ratios
-#-------------------------------------------------------------------------------
-# h/d ratio
-picea <- picea %>%
-  mutate(ht.dbh = final.ht/DBH.23)
-
-xyplot(ht.dbh~DBH.23|SPP,data=picea)
-xyplot(ht.dbh~DBH.23|CODE,data=picea)
-
-
-# omit NAs
-picea <- na.omit(picea)
-
-
-# Fit a mixed-effects model with nested factors
-mod1 <- lmer(ht.dbh~log(sp.tpa+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
-mod2 <- lmer(ht.dbh~log(sp.bapa+0.1)+SPP+(1|PLOT/BLOCK), data=picea)
-
-# Summary of the model
-summary(mod1)
-summary(mod2)
-
-#-------------------------------------------------------------------------------
-#Site Index
-#-------------------------------------------------------------------------------
-#vicary.site
-picea <- picea%>%
-  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=final.ht, age=28))
-
-mean(picea$vicary.si)
-
-picea %>%
-  group_by(uid) %>%
-  summarise_at(vars(vicary.si), list(name = mean))
-
-
-#steinman.site
-picea <- picea%>%
-  mutate(steinman.si=mapply(steinman.site,ht=final.ht, age=28))
-
-mean(picea$steinman.si)
-
-picea %>%
-  group_by(uid) %>%
-  summarise_at(vars(steinman.si), list(name = mean))
-
-#-------------------------------------------------------------------------------
-#Top Height (vicary height) - (mixture/plot level)
-#-------------------------------------------------------------------------------
-picea <- picea%>%
-  mutate(topht=mapply(vicary.height,SPP="RS", age=28, si=si))
-
-mean(picea$topht)
-
-picea %>%
-  group_by(CODE) %>%
-  summarise_at(vars(topht), list(name = mean))
-
-#-------------------------------------------------------------------------------
-#qmd
-#-------------------------------------------------------------------------------
-picea <- picea %>%
-  mutate(qmd=mapply(qmd,ba=bapa, tpa=tpa))
-
-mean(picea$qmd)
-
-picea %>%
-  group_by(CODE) %>%
-  summarise_at(vars(qmd), list(name = mean))
-
-
-#-------------------------------------------------------------------------------
-#relative density index
-#-------------------------------------------------------------------------------
-picea <- picea %>%
-  mutate(rdi=mapply(relative.density.index,bapa=bapa, qmd=qmd))
-
-mean(picea$rdi)
-
-picea %>%
-  group_by(uid) %>%
-  summarise_at(vars(rdi), list(name = mean))
-
-xyplot(qmd~bapa|SPP,data=picea)
-
-#-------------------------------------------------------------------------------
-#relative spacing
-#-------------------------------------------------------------------------------
-picea <- picea %>%
-  mutate(rs=mapply(relative.spacing,tpa=tpa, domht=topht))
-
-mean(picea$rdi)
-
-picea %>%
-  group_by(uid) %>%
-  summarise_at(vars(rdi), list(name = mean))
-
-xyplot(qmd~bapa|SPP,data=picea)
-
-#-------------------------------------------------------------------------------
-#stand density index
-#-------------------------------------------------------------------------------
-picea <- picea %>%
-  mutate(sdi=mapply(stand.density.index,tpa=tpa, qmd=qmd))
-
-mean(picea$sdi)
-
-picea %>%
-  group_by(uid) %>%
-  summarise_at(vars(sdi), list(name = mean))
-
-xyplot(qmd~tpa|SPP,data=picea)
-
-#-------------------------------------------------------------------------------
-#volume calculation at the individual tree level
-#-------------------------------------------------------------------------------
-picea <- picea%>%
-  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
-
-xyplot(vol~DBH.23|CODE,data=picea)
-
-p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
-  geom_boxplot() +
-  ylab("Volume (cubic feet)") +
-  xlab("Species Mixture") +
-  ggtitle("Volume by Species Mixture")
-print(p.vol.code)
-
-# Filter for the species of interest
-picea.ns <- picea %>%
-  filter(SPP == "NS")
-
-# Calculate the volume for just NS across plots
-picea.ns <- picea.ns %>%
-  mutate(vol = mapply(vol.calc, SPP = SPP, DBH = DBH.23, HT = final.ht))
-
-# boxplot
-picea.ns<-filter(picea.ns,CODE != "BW"&CODE !="RW"&CODE !="W")
-p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
-  geom_boxplot()+
-  ylab("Volume (cubic feet)") +
-  xlab("Species")
-
-p.vol
-
-xyplot(vol~DBH.23|CODE,data=picea)
-xyplot(vol~DBH.23|SPP,data=picea)
-
-#-------------------------------------------------------------------------------
-#Stem Form: volume deductions 
-#Remember this is only for height trees, must apply to rest of imputed heights
-#-------------------------------------------------------------------------------
-# Step 1: generate LR equation to determine what attributes to a defect being present 
-
-picea <- picea %>%
-  mutate(defect_present = ifelse( T_DEDUCT > 0, 1, 0))
-
-plot(picea$defect_present)
-
-#NAs make sense since, filter for trees with HTs and Stem Form taken
-ggplot(picea, aes(x = as.factor(defect_present))) +
-  geom_bar() +
-  labs(x = "Defect Present (0 = No, 1 = Yes)", y = "Count") +
-  ggtitle("Bar Chart of Defect Presence") +
-  theme_minimal()
-
-
-#histogram of T_DEDUCT distribution from 0-100
-picea <- picea %>%
-  mutate(T_DEDUCT = as.numeric(T_DEDUCT),  # Convert T_DEDUCT to numeric
-         defect_present = ifelse(T_DEDUCT > 0, 1, 0))
-
-deduct <- picea %>%
-  filter(T_DEDUCT >= 0 & T_DEDUCT <= 100)
-
-ggplot(deduct, aes(x = T_DEDUCT)) +
-  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
-  labs(x = "T_DEDUCT", y = "Count") +
-  ggtitle("Histogram of T_DEDUCT Values (0-100)") +
-  theme_minimal() +
-  xlim(0, 100) +  
-  ylim(0, 30)  
-
-#bin the histogram by 10 and 25%
-picea$deduct.class10 <- 10 * as.integer(picea$T_DEDUCT / 10)
-picea$deduct.class25 <- 25 * as.integer(picea$T_DEDUCT / 25)
-
-deduct_sum <- picea %>%
-  group_by(deduct.class10) %>%
-  summarise(Count = n()) %>%
-  ungroup()
-
-deduct_sum <- deduct_sum %>%
-  filter(!is.na(deduct.class10))
-
-ggplot(deduct_sum, aes(x = as.factor(deduct.class10), y = Count, fill = deduct.class10)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  labs(title = "Defect Distribution by Percentage",
-       x = "Percent Defect",
-       y = "Number of Trees") +
-  scale_x_discrete(drop = FALSE) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-
-
-mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod1)
-
-
-
-# Step 2: Defect 1,0 if 1 then go to glm model and account for how much volume is deducted based on SPP, Ht.23, DBH,23, etc. 
-mod1 <- glm(defect_present ~ DBH.23 + Proportion + HT.23 + HCB.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod1)
-
-mod2 <- glm(defect_present ~ DBH.23 + HT.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod2)
-
-mod3 <- glm(defect_present ~ DBH.23 + SPP, 
-            data = picea, 
-            family = binomial(link = "logit"))
-summary(mod3)
-
-require(lme4)
-mod4 <- glmer(defect_present ~ DBH.23 + (1 |SPP), 
-              data = picea, 
-              family = binomial(link = "logit"))
-
-
-AIC(mod1, mod2, mod3, mod4)
-
-# Step 3: use model to to impute T_DEDUCT for all stems
-
-# Step 4: vol - T_DEDUCT = fin.vol
-
-################################ OR ############################################
-
-# Step 1: model with T_DEDUCT on height trees
-# Deduct T_DEDUCT from vol where T_DEDUCT is available
-picea <- picea %>%
-  mutate(vol_adj = ifelse(!is.na(T_DEDUCT), vol * (1 - T_DEDUCT / 100), vol))
-
-# Fit a model to predict T_DEDUCT
-mod10 <- glm(T_DEDUCT ~ DBH.23 + SPP, 
-             data = picea, 
-             na.action = na.exclude)  
-summary(mod10)
-
-mod11 <- glm(T_DEDUCT ~ DBH.23 * SPP, 
-             data = picea, 
-             na.action = na.exclude)
-
-mod12 <- glm(T_DEDUCT ~ DBH.23 + HT.23 + SPP + Proportion, 
-             data = picea, 
-             na.action = na.exclude)  
-summary(mod12)
-
-AIC(mod10, mod11, mod12)
-
-# Step 2: apply that model to the rest of the trees
-# Predict T_DEDUCT for rows without it
-picea$predicted_T_DEDUCT <- predict(mod12, newdata = picea, type = "response")
-
-# Deduct predicted T_DEDUCT from vol for those rows
-picea <- picea %>%
-  mutate(vol_adj = ifelse(is.na(T_DEDUCT) & !is.na(predicted_T_DEDUCT), 
-                          vol * (1 - predicted_T_DEDUCT / 100), 
-                          vol_adj))
-
-view(picea)
-#-------------------------------------------------------------------------------
-#overyielding & transgressive overyielding, looking at the plot level
-#-------------------------------------------------------------------------------
-plot_level_volume <- picea %>%
-  group_by(BLOCK, PLOT, CODE) %>%
-  summarise(Total_Volume = sum(vol, na.rm = TRUE), .groups = 'drop')
-
-oy_plot <- function(data) {
-  results <- data.frame(BLOCK = character(), PLOT = character(), Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (plot in unique(data$PLOT)) {
-    plot_data <- data %>% filter(PLOT == plot)
-    
-    for (i in 1:nrow(plot_data)) {
-      mixture <- plot_data$CODE[i]
-      
-      if (nchar(mixture) == 2) {  # Check if it's a mixture
-        species1 <- substr(mixture, 1, 1)
-        species2 <- substr(mixture, 2, 2)
-        
-        volume1 <- plot_data$Total_Volume[plot_data$CODE == species1]
-        volume2 <- plot_data$Total_Volume[plot_data$CODE == species2]
-        mixture_volume <- plot_data$Total_Volume[i]
-        
-        if (length(volume1) > 0 && length(volume2) > 0) {
-          average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
-          overyielding <- mixture_volume / average_volume
-          
-          results <- rbind(results, data.frame(BLOCK = plot_data$BLOCK[i], PLOT = plot, Mixture = mixture, Overyielding = overyielding))
-        }
-      }
-    }
-  }
-  return(results)
-}
-
-oy_results <- oy_plot(plot_level_volume)
-
-toy_plot <- function(data) {
-  results <- data.frame(BLOCK = character(), PLOT = character(), Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (plot in unique(data$PLOT)) {
-    plot_data <- data %>% filter(PLOT == plot)
-    
-    for (i in 1:nrow(plot_data)) {
-      mixture <- plot_data$CODE[i]
-      
-      if (nchar(mixture) == 2) {
-        species1 <- substr(mixture, 1, 1)
-        species2 <- substr(mixture, 2, 2)
-        
-        volume1 <- plot_data$Total_Volume[plot_data$CODE == species1]
-        volume2 <- plot_data$Total_Volume[plot_data$CODE == species2]
-        mixture_volume <- plot_data$Total_Volume[i]
-        
-        if (length(volume1) > 0 && length(volume2) > 0) {
-          max_volume <- max(volume1, volume2, na.rm = TRUE)
-          transgressive_overyielding <- mixture_volume / max_volume
-          
-          results <- rbind(results, data.frame(BLOCK = plot_data$BLOCK[i], PLOT = plot, Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
-        }
-      }
-    }
-  }
-  return(results)
-}
-
-toy_results <- toy_plot(plot_level_volume)
-
-oy_summary <- oy_results %>%
-  group_by(Mixture) %>%
-  summarise(
-    Mean_Overyielding = mean(Overyielding, na.rm = TRUE),
-    SD_Overyielding = sd(Overyielding, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-toy_summary <- toy_results %>%
-  group_by(Mixture) %>%
-  summarise(
-    Mean_Transgressive_Overyielding = mean(Transgressive_Overyielding, na.rm = TRUE),
-    SD_Transgressive_Overyielding = sd(Transgressive_Overyielding, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-
-ggplot(oy_summary, aes(x = Mixture, y = Mean_Overyielding)) +
-  geom_bar(stat = "identity", fill = "grey") +
-  geom_errorbar(aes(ymin = Mean_Overyielding - SD_Overyielding, ymax = Mean_Overyielding + SD_Overyielding), width = 0.2) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  labs(title = "Overyielding by Mixture at Plot Level", x = "Mixture", y = "Mean Overyielding") +
-  theme_minimal()
-
-ggplot(toy_summary, aes(x = Mixture, y = Mean_Transgressive_Overyielding)) +
-  geom_bar(stat = "identity", fill = "grey") +
-  geom_errorbar(aes(ymin = Mean_Transgressive_Overyielding - SD_Transgressive_Overyielding, ymax = Mean_Transgressive_Overyielding + SD_Transgressive_Overyielding), width = 0.2) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +
-  labs(title = "Transgressive Overyielding by Mixture at Plot Level", x = "Mixture", y = "Mean Transgressive Overyielding") +
-  theme_minimal()
-
-
-
