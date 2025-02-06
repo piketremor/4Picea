@@ -512,6 +512,7 @@ unique(picea2$T_DEDUCT)
 picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
 hist(picea2$deductclass)
 
+
 mod1 <- glmer(deductclass~SPP + Min_depth + bal+(1|BLOCK), data=picea2,family="poisson") #mixed poisson
 summary(mod1)
 
@@ -547,8 +548,7 @@ summary(mod5)
 AIC(mod4, mod5)
 
 # regsubsets
-
-mod6 <- zeroinfl(deductclass ~ SPP + CODE + flowdir + tmax + WD2000 + dew + bal + htl  + qmd,
+mod6 <- zeroinfl(deductclass ~ SPP + CODE + flowdir + tmax + dew + WD2000 + htl + bal + qmd,
                  data = picea2)
 summary(mod6)
 
@@ -559,90 +559,95 @@ summary(mod7)
 AIC(mod6, mod7, mod8)
 
 
-mod8 <- zeroinfl(deductclass ~ tmax + dew + flowdir + qmd + bal, 
+mod8 <- zeroinfl(deductclass ~dew + flowdir + qmd + bal, 
                  dist = "negbin", data = picea2)
 summary(mod8)
 AIC(mod8)
 
 # SPPNS, SPPRM, SPPWP, CODEBR, CODEN, flowdir, tmax, dew, WD2000, bal, htl, qmd
 # SPPNS, SPPRM, SPPWP, CODEBR, CODEN, tmax, bal, htl, qmd
+
+ggplot(picea2, aes(x = SPP, y = deductclass)) +
+  geom_boxplot() +
+  labs(title = "Boxplot",
+       x = "SPP",
+       y = "Deductclass") +
+  theme_minimal()
+
+# fit missing values, seems to be at the plot level and not individual tree
+picea$ded_fitted <- predict(mod8, newdata = picea, type = "response")
+
+picea$ded_final <- ifelse(is.na(picea$T_DEDUCT), picea$ded_fitted, picea$T_DEDUCT)
+
+summary(picea$ded_final)
+hist(picea$ded_final)
+
+# final vol after stem form deductions
+picea$ded_percentage <- picea$ded_final / 100
+picea$vol_final <- picea$vol * (1 - picea$ded_percentage)
+
+summary(picea$vol_final)
+hist(picea$vol_final)
+
+xyplot(vol_final~DBH.23|CODE,data=picea)
+
+p.vol.code <- ggplot(picea, aes(factor(CODE), vol_final)) +
+  geom_boxplot() +
+  ylab("Volume (cubic feet)") +
+  xlab("Species Mixture") +
+  ggtitle("Volume by Species Mixture")
+print(p.vol.code)
+
 #-------------------------------------------------------------------------------
 #overyielding & transgressive overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
-total_volume_by_code <- picea %>%
+# generate plot estimates
+plot_estimates <- picea %>%
   mutate(qmd.2 = qmd(bapa,tpa),
-         rd.2 = bapa/sqrt(qmd.2))%>%
-  group_by(BLOCK, PLOT, CODE) %>%
-  summarise(Total_Volume = sum(vol, na.rm = TRUE) / 3, .groups = 'drop',
+         rd.2 = bapa/sqrt(qmd.2)) %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(total_vol = sum(vol, na.rm = TRUE),  
             BAPA = mean(bapa),
             TPA = mean(tpa),
             QMD = mean(qmd.2),
-            RD = mean(rd.2))
-
-write.csv(total_volume_by_code,"~/Desktop/4Picea_Standlister.csv")
-
-
-#boxplot of vol by CODE
-boxplot_metrics <- total_volume_by_code %>%
-  group_by(CODE) %>%
-  summarise(
-    Q1 = quantile(Total_Volume, 0.25),
-    Median = median(Total_Volume),
-    Q3 = quantile(Total_Volume, 0.75),
-    Min = min(Total_Volume),
-    Max = max(Total_Volume),
-    .groups = 'drop'
-  )
-
-
-ggplot(total_volume_by_code, aes(x = CODE, y = Total_Volume)) +
-  geom_boxplot() +
-  labs(title = "Volume by Species Mixture",
-       x = "Species Mixture",
-       y = "Volume (ft3)") +
-  theme_minimal()
-
-data <- read.table(text = "
-CODE    VOL
-NW	    57
-BW	    49
-RW	    40
-W	      51
-NR	    48
-BN	    45
-N	      56
-BR	    35
-R	      17
-B	      42
- ", header = TRUE, stringsAsFactors = FALSE)
+            RD = mean(rd.2),
+            .groups = 'drop')
+#-------------------------------------------------------------------------------
+# Overyielding & Transgressive Overyielding, looking at the plot level
+#-------------------------------------------------------------------------------
+# Generate plot estimates
+plot_estimates <- picea %>%
+  mutate(qmd.2 = qmd(bapa,tpa),
+         rd.2 = bapa/sqrt(qmd.2)) %>%
+  group_by(BLOCK, PLOT, CODE) %>%  # Include CODE here for species code
+  summarise(total_vol = sum(vol, na.rm = TRUE),  
+            BAPA = mean(bapa),
+            TPA = mean(tpa),
+            QMD = mean(qmd.2),
+            RD = mean(rd.2),
+            .groups = 'drop')
 
 
-# Function to calculate overyielding
-
-calculate_overyielding <- function(data) {
+# Calculate overyielding at plot level
+oy <- function(data) {
   results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
   
   for (i in 1:nrow(data)) {
-    mixture <- data$CODE[i]
+    mixture <- as.character(data$CODE[i])  # Force CODE to be a character
     
-    # Check if the mixture consists of two species (like 'NW')
-    if (nchar(mixture) == 2) {
-      species1 <- substr(mixture, 1, 1)  # First species
-      species2 <- substr(mixture, 2, 2)  # Second species
+    if (nchar(mixture) == 2) { # only calculate overyielding for mixtures
+      species1 <- substr(mixture, 1, 1)  
+      species2 <- substr(mixture, 2, 2)  
       
-      # Get yields for the two monocultures
-      volume1 <- data$VOL[data$CODE == species1]
-      volume2 <- data$VOL[data$CODE == species2]
+      volume1 <- data$total_vol[data$CODE == species1]
+      volume2 <- data$total_vol[data$CODE == species2]
       
-      # Get the mixture yield
-      mixture_volume <- data$VOL[i]
+      mixture_volume <- data$total_vol[i]
       
-      # Calculate the average monoculture volume
       if (length(volume1) > 0 && length(volume2) > 0) {
         average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
         overyielding <- mixture_volume / average_volume
         
-        # Store the results
         results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
       }
     }
@@ -651,40 +656,42 @@ calculate_overyielding <- function(data) {
   return(results)
 }
 
-overyielding_results <- calculate_overyielding(data)
-print(overyielding_results)
+oy_results <- oy(plot_estimates)
+avg_oy <- oy_results %>%
+  group_by(Mixture) %>%
+  summarise(avg_oy = mean(Overyielding, na.rm = TRUE))
+print(avg_oy)
 
-ggplot(overyielding_results, aes(x = Mixture, y = Overyielding)) +
-  geom_bar(stat = "identity", fill = "grey") +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at overyielding = 1
-  labs(title = "Overyielding by Species Mixture", x = "Species Mixture", y = "Overyielding Value") +
-  theme_minimal()
+ggplot(avg_oy, aes(x = Mixture, y = avg_oy)) +
+  geom_bar(stat = "identity", fill = "grey") +  # Bar chart for average overyielding
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at 1
+  labs(title = "Overyielding by Species Mixture", 
+       x = "Species Mixture", 
+       y = "Average Overyielding") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# Function to calculate transgressive overyielding
+        
+# calculate transgressive overyielding
 calculate_transgressive_overyielding <- function(data) {
   results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
   
   for (i in 1:nrow(data)) {
-    mixture <- data$CODE[i]
+    mixture <- as.character(data$CODE[i]) 
     
-    # Check if the mixture consists of two species (like 'NW')
     if (nchar(mixture) == 2) {
-      species1 <- substr(mixture, 1, 1)  # First species
-      species2 <- substr(mixture, 2, 2)  # Second species
+      species1 <- substr(mixture, 1, 1)
+      species2 <- substr(mixture, 2, 2)
       
-      # Get yields for the two monocultures
-      volume1 <- data$VOL[data$CODE == species1]
-      volume2 <- data$VOL[data$CODE == species2]
+      volume1 <- data$total_vol[data$CODE == species1]  
+      volume2 <- data$total_vol[data$CODE == species2]  
       
-      # Get the mixture yield
-      mixture_volume <- data$VOL[i]
+      mixture_volume <- data$total_vol[i]  
       
-      # Calculate the maximum monoculture volume
       if (length(volume1) > 0 && length(volume2) > 0) {
-        max_volume <- max(volume1, volume2, na.rm = TRUE)
-        transgressive_overyielding <- mixture_volume / max_volume
+        max_volume <- max(volume1, volume2, na.rm = TRUE)  # maximum volume of the two monocultures
+        transgressive_overyielding <- mixture_volume / max_volume  # ratio to the larger monoculture volume
         
-        # Store the results
         results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
       }
     }
@@ -693,13 +700,37 @@ calculate_transgressive_overyielding <- function(data) {
   return(results)
 }
 
-transgressive_overyielding_results <- calculate_transgressive_overyielding(data)
-print(transgressive_overyielding_results)
 
-ggplot(transgressive_overyielding_results, aes(x = Mixture, y = Transgressive_Overyielding)) +
-  geom_bar(stat = "identity", fill = "grey") +  # Use geom_bar for bar chart
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at 1
+toy_results <- calculate_transgressive_overyielding(plot_estimates)
+avg_toy <- toy_results %>%
+  group_by(Mixture) %>%
+  summarise(avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE))
+print(avg_toy)
+
+ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
+  geom_bar(stat = "identity", fill = "grey") +  
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
   labs(title = "Transgressive Overyielding by Species Mixture", 
        x = "Species Mixture", 
-       y = "Transgressive Overyielding Value") +
-  theme_minimal()
+       y = "Transgressive Overyielding") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
