@@ -533,7 +533,7 @@ mod3 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
 AIC(mod1,mod2,mod3)
 
 
-# Matt Russel zero-inflated models
+# Matt Russell zero-inflated models
 library(pscl)
 
 # vsurf 
@@ -599,20 +599,6 @@ p.vol.code <- ggplot(picea, aes(factor(CODE), vol_final)) +
 print(p.vol.code)
 
 #-------------------------------------------------------------------------------
-#overyielding & transgressive overyielding, looking at the plot level
-#-------------------------------------------------------------------------------
-# generate plot estimates
-plot_estimates <- picea %>%
-  mutate(qmd.2 = qmd(bapa,tpa),
-         rd.2 = bapa/sqrt(qmd.2)) %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(total_vol = sum(vol, na.rm = TRUE),  
-            BAPA = mean(bapa),
-            TPA = mean(tpa),
-            QMD = mean(qmd.2),
-            RD = mean(rd.2),
-            .groups = 'drop')
-#-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
 # Generate plot estimates
@@ -628,7 +614,7 @@ plot_estimates <- picea %>%
             .groups = 'drop')
 
 
-# Calculate overyielding at plot level
+# calculate overyielding at plot level
 oy <- function(data) {
   results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
   
@@ -699,7 +685,6 @@ calculate_transgressive_overyielding <- function(data) {
   
   return(results)
 }
-
 
 toy_results <- calculate_transgressive_overyielding(plot_estimates)
 avg_toy <- toy_results %>%
