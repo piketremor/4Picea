@@ -2,8 +2,10 @@
 #install.packages("G:/My Drive/MEForLab",
                  #repos = NULL,
                  #type = "source")
-devtools::install_github("piketremor/MEForLab")
+#devtools::install_github("piketremor/MEForLab")
 
+dev.off()
+rm(list=ls())
 library(MEForLab)
 library(devtools)
 library(dplyr)
@@ -427,10 +429,186 @@ p.vol
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
 library(randomForest)
+
 library(VSURF)
 library(caTools)
 
-picea$deductclass <- 25*as.integer((picea$T_DEDUCT+(25/2))/25)
+
+# premer start 
+
+picea$deductclass <- 5*as.integer((picea$T_DEDUCT+(5/2))/5)
+# are we sure we are only fitting trees that have a measurement
+
+hist(picea$deductclass)
+picea2 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+d.set <- picea2
+d.set$T_DEDUCT[is.na(d.set$T_DEDUCT)] <- 999
+d.set <- dplyr::filter(d.set,T_DEDUCT<998)
+#d.set$HT.23[is.na(d.set$HT.23)] <- 0
+#d.set <- dplyr::filter(d.set,HT.23>0)
+plot(d.set$DBH.23,d.set$HT.23)
+
+names(d.set)
+obs <- d.set$deductclass
+#obs[is.na(obs)] <- 0
+preds <- d.set[c(4,11,12,21:46,51:55,57:61,65,66,71,76:79)]
+#preds[is.na(preds)] <- 0
+#vs <- VSURF(preds,obs,ncores = 4)
+#vs$varselect.pred
+xyplot(deductclass~DBH.23|SPP,data=d.set)
+preds2 <- d.set[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
+#preds2[is.na(preds2)] <- 0
+#obs <- d.set$deductclass
+#obs[is.na(obs)] <- 0
+nvs <- VSURF(preds2,obs)
+nvs$varselect.pred
+names(preds2)
+
+#lai, code, rs, bal, sdi
+
+mod1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|1,
+                   data=d.set,dist="negbin")
+summary(mod1)
+mod2 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|rs+sdi+bal+roughness+CODE,
+                 data=d.set,dist="negbin")
+summary(mod2)
+AIC(mod1,mod2)
+mod3 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE,
+                 data=d.set,dist="negbin")
+summary(mod3)
+AIC(mod3,mod2)
+d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
+mod3.1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE+SPP,
+                 data=d.set,dist="negbin")
+summary(mod3.1)
+AIC(mod3.1,mod3)
+
+performance(mod3.1)
+# dang, that is good. 
+picea$fit.deduction <- ifelse(picea$SPP=="RS"|
+                              picea$SPP=="WS"|
+                              picea$SPP=="BS"|
+                              picea$SPP=="NS",predict(mod3.1,type="response"),0)
+picea$fit.deduct.class <- (5*as.integer((picea$fit.deduction+(5/2))/5))/100
+# will use the modeled reduction
+picea$fit.deduct.class[picea$fit.deduct.class>1] <- 1
+
+picea$adj.vol <- picea$vol*picea$fit.deduct.class
+plot(picea$vol,picea$adj.vol,ylim=c(0,15),xlim=c(0,15))
+plot(d.set$wsi,d.set$LAI)
+
+# for fun, looking at LAI
+obs.d <- d.set$LAI
+preds.d <- d.set[c(12,21:46,51:55,57:61,65,66,71,76:79)]
+fun <- VSURF(preds.d,obs.d)
+
+fun$varselect.pred
+names(preds.d)
+
+# covariates with LAI - CODE, tri, roughness, qmd, rdi, and nit
+d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
+plot(d.set$SWC2,d.set$LAI)
+
+ch <- lm(LAI~roughness+SWC2,data=d.set)
+summary(ch)
+plot(ch)
+d.set$fit <- predict(ch,d.set)
+d.set$resid <- d.set$LAI-d.set$fit
+plot(d.set$fit,d.set$resid)
+abline(h=0)
+
+plot(d.set$LAI~d.set$SWC2)
+plot(d.set$MeanWD,d.set$LAI)
+boxplot(LAI~CODE,data=d.set)
+
+# premer, end. 
+
+
+
+
+str(d.set)
+require(pscl)
+iz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
+               dist="negbin",data=d.set)
+summary(iz)
+
+performance(iz)
+plot(iz)
+izz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
+               dist="poisson",data=d.set)
+AIC(iz,izz)
+summary()
+
+plot(deductclass ~ SPP, data = d.set, subset = deductclass > 0,
+     log = "y", main = "Count (positive)")
+
+
+
+
+# SPP, DBH, rs, htl
+
+# let's try something.... 
+d.set$deductclass[is.na(d.set$ded)] <- 0
+d.set$d.dummy <- as.factor(ifelse(d.set$deductclass>0,1,0))
+vs2 <- VSURF(preds,d.set$d.dummy)
+
+vs2$varselect.pred
+names(preds)
+#sp, qmd , rs
+
+require(pscl)
+mod8 <- zeroinfl(deductclass ~dew + qmd + rs,
+                 dist = "negbin", data = d.set)
+mod8
+plot(mod8)
+require(DHARMa)
+
+mod9 <- zeroinfl(deductclass ~dew + qmd + rs,
+                 , data = d.set)
+AIC(mod8,mod9)
+summary(mod8)
+# the VSURF looks great for the zero inflateed, now for the continuous
+
+much <- dplyr::filter(d.set,deductclass>0)
+
+require(leaps)
+much$deductclass <- as.integer(much$deductclass)
+plot(much$deductclass)
+dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
+                                   tri+ tpi+roughness+slope+aspect+flowdir+tmin+tmean+ 
+                                   tmax+ dew+vpdmax+vpdmin+McNab+Bolstad+Profile+Planform+
+                                   Winds10+Winds50+SWI+RAD+ppt+Parent+
+                                   dep+ex.k+nit+SWC2+MeanWD+Proportion+Min_depth+WD2000+
+                                   WD2020+WHC+ex.mg+ex.ca+ph+bapa+tpa+hd+bal+htl+ 
+                                   vicary.si+steinman.si+topht+qmd+rdi+rs+sdi,
+                                   data=much,method="exhaustive",really.big=TRUE)
+
+
+
+
+
+
+require(performance)
+performance(mod8)
+
+logLik(mod8)*-2
+BIC(mod8)
+mod8null <- update(mod8,.~1)
+pchisq(2*logLik(mod8)-logLik(mod8null),df=16,lower.tail = FALSE)/16
+
+
+
+
+expected.counts<-m2$fitted.values
+chisq.term<-(obs.counts-expected.counts)^2/expected.counts
+df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
+                Ek=expected.counts,ChiSqk=chisq.term)
+
+
+
+
+
+#spp, dbh, htl
 
 response <- "deductclass"  
 predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
@@ -460,7 +638,12 @@ train[] <- lapply(train, function(x) {
   return(x)
 })
 
+
 vsurf <- VSURF(train[, predictors], train[, response], parallel = TRUE, ncores = 3)
+obs <- picea$deductclass
+preds <- picea()
+vsurf2 <- VSURF(predictors,response)
+
 
 vsurf$varselect.pred
 
