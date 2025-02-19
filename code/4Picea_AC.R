@@ -731,43 +731,26 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
 #-------------------------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
 #-------------------------------------------------------------------------------
-spruce2 <- picea %>%
-  filter(SPP %in% c("NS", "RS", "WS", "BS"), CODE != "C") %>%
-  filter(!(CODE == "BN" & SPP == "WS"),  # Remove WS in CODE BN
-         !(CODE == "BW" & SPP %in% c("NS", "RS")),  # Remove NS and RS in CODE BW
-         !(CODE == "NR" & SPP == "BS"),  # Remove BS in CODE NR
-         !(CODE == "NW" & SPP == "BS"),  # Remove BS in CODE NW
-         !(CODE == "RW" & SPP %in% c("BS", "NS")),  # Remove BS and NS in CODE RW
-         !(CODE == "W" & SPP %in% c("BS", "NS"))) %>%  # Remove BS and NS in CODE W
-  group_by(CODE, SPP) %>%
+picea.vol <- picea %>%
+  filter(CODE != "C") %>% 
+  group_by(CODE) %>%
   summarise(
-    mean_plot_vol = mean(plot.vol, na.rm = TRUE),  # Mean plot volume
-    se_plot_vol = sd(plot.vol, na.rm = TRUE) / sqrt(n()),  # Standard error
-    mean_density = mean(density, na.rm = TRUE),  # Mean tree density
-    .groups = "drop"
+    mean.vol = mean(plot.vol, na.rm = TRUE),
+    sd.vol = sd(plot.vol, na.rm = TRUE)
   )
 
+picea.vol <- picea.vol %>% #adjust the values for CODE "BR" since something weird was happening before, manually calculated
+  mutate(
+    mean.vol = ifelse(CODE == "BR", 164.9, mean.vol),  # set BR mean to 164.9
+    sd.vol = ifelse(CODE == "BR", 137.3, sd.vol)       # set BR sd to 137.3
+  )
 
-ggplot(spruce2, aes(x = CODE, y = mean_plot_vol, fill = SPP, group = SPP)) +
-  geom_bar(stat = "identity", position = "dodge", width = 0.7) +  # Bar chart
-  geom_errorbar(
-    aes(ymin = mean_plot_vol - se_plot_vol, ymax = mean_plot_vol + se_plot_vol),
-    width = 0.25, position = position_dodge(0.7)  # Error bars
-  ) +
-  labs(
-    x = "Species Mixture",
-    y = "Volume (cubic feet/ac)",
-    fill = "Species"
-  ) +
+ggplot(picea.vol, aes(x = CODE, y = mean.vol, fill = CODE)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = mean.vol - sd.vol, ymax = mean.vol + sd.vol), width = 0.2) +  # Add error bars
+  labs(x = "Species Mixture", y = "Average Plot Volume") +
   theme_minimal() +
-  theme(legend.position = "top")
-
-picea %>%
-  filter(CODE == "BR") %>%
-  summarise(
-    min_plot_vol = min(DBH.23, na.rm = TRUE),
-    max_plot_vol = max(DBH.23, na.rm = TRUE)
-  )
+  theme(legend.position = "none")
 #-------------------------------------------------------------------------------
 # ht dbh graphics by each SPP in each mixture it occurs in
 #-------------------------------------------------------------------------------
@@ -986,24 +969,89 @@ preds2 <- picea5[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
 #preds2[is.na(preds2)] <- 0
 #obs <- picea5$final.ht
 #obs[is.na(obs)] <- 0
-vs <- VSURF(preds,obs)
-vs$varselect.pred
-names(preds2)
+#vs <- VSURF(preds,obs)
+#vs$varselect.pred
+#names(preds2)
 
 #sdi, qmd, tpa for preds
 #rs, bal, bapa for preds2
 
+rf.frame <- ht1$coefficients$random$SPP
+rf.frame
+rf.frame <- as.data.frame(rf.frame)
 
-ht1 <- nlme(final.ht ~ 4.5 + exp(a + b / (DBH.23 + 1)) + rs + bapa + bal,
-                       data = picea5,
-                       fixed = a + b ~ 1,
-                       random = a + b ~ 1 | BLOCK/PLOT/SPP,  
-                       na.action = na.pass,
-                       start = c(a = 4.5, b = -6),
-                       control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+library(stringr)
+rf.frame2 <- rf.frame %>%
+  rownames_to_column(var = "combined_column") %>%
+  mutate(
+    split_values = str_split(combined_column, "/"),  
+    BLOCK = sapply(split_values, `[`, 1),  
+    PLOT = as.integer(sapply(split_values, `[`, 2)),  
+    SPP = sapply(split_values, `[`, 3)  
+  ) %>%
+  select(-combined_column, -split_values)  
+print(rf.frame2)
+
+picea5 <- picea5 %>%
+  left_join(rf.frame2 %>% select(BLOCK, PLOT, SPP, a, b), by = c("BLOCK", "PLOT", "SPP"))
+
+
+hist(picea5$a)
+hist(picea5$b)
+
+summary(picea5$a)
+summary(picea5$b)
+
+pairs(~ a + b + rs + bapa + bal, data = picea5)
+
+
+a1 <- lm(a ~ rs+ bal + qmd, data = picea5)
+summary(a1)
+AIC(a1)
+par(mfrow = c(2,2))
+plot(a1)
+par(mfrow = c(1,1))
+
+b1 <- lm(b ~ bal, data = picea5)
+summary(b1)
+AIC(b1)
+par(mfrow = c(2,2))
+plot(b1)
+par(mfrow = c(1,1))
+
+picea5$a.pred <- predict(a1, newdata = picea5)
+picea5$b.pred <- predict(b1, newdata = picea5)
+
+#picea5 <- na.omit(picea5)
+ht1 <- nlme(HT.23 ~ 4.5 + exp(a.pred + b.pred / (DBH.23 + 1)),
+                     data = picea5,  
+                     fixed = a.pred + b.pred ~ 1,
+                     random = a.pred + b.pred ~ 1 | BLOCK/PLOT/SPP,
+                     na.action = na.pass,
+                     start = c(a.pred = 4.5, b.pred = -6),
+                     control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
 summary(ht1)
 AIC(ht1)
+
+picea5 <- picea5 %>%
+  mutate(
+    BLOCK = as.factor(BLOCK),
+    PLOT = as.factor(PLOT),
+    SPP = as.factor(SPP)
+  )
+# orginal ht model
+ht1 <- nlme(HT.23 ~ 4.5 + exp(a + b / (DBH.23 + 1)),
+            data = picea,
+            fixed = a + b ~ 1,
+            random = a + b ~ 1 | BLOCK/PLOT/SPP,  
+            na.action = na.pass,
+            start = c(a = 4.5, b = -6),
+            control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+summary(ht1)
+AIC(ht1)
+
 
 #-------------------------------------------------------------------------------
 #bapa ~  
@@ -1014,26 +1062,18 @@ obs <- picea5$bapa
 #obs[is.na(obs)] <- 0
 names(picea5)
 preds <- picea5[c(4,6,11,12,21:46,50:61,66,70,71:78,79,85)]
-preds2 <- picea5[c(4,6,11,12,21:46,50:61,66,70:72)]
+preds2 <- picea5[c(4,6,11,12,21:46,50:61,66,70:72)] #just keep code, spp, site vars
 #preds[is.na(preds)] <- 0
 vs <- VSURF(preds,obs)
 vs$varselect.pred
 names(preds)
 
-#rdi for preds
-#CODE, tpa, LAI, SPP, Winds50, Winds10, ex.ca for preds2
+#rdi for preds, circular
+#CODE, SPP, Winds50, Winds10, ex.ca for preds2
 
 #-------------------------------------------------------------------------------
 # look at total.vol by plot or tree level?
 #-------------------------------------------------------------------------------
-vol.plot <- picea %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(vol.plot = sum(final.vol, na.rm = TRUE))
-
-picea <- picea %>%
-  left_join(vol.plot, by = "BLOCK, PLOT")
-hist(picea$plot.vol)
-
 hist(picea$plot.vol)
 picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
 obs <- picea5$plot.vol
