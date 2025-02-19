@@ -859,14 +859,14 @@ plot.2
 #-------------------------------------------------------------------------------
 spruce <- picea %>%
   mutate(stand_type = case_when(
-    CODE %in% c("NW", "NR", "NB", "RB", "RW", "BW") ~ "Mixed",
+    CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
     CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
     TRUE ~ NA_character_
   )) %>%
-  filter(!is.na(DBH.23) & !is.na(stand_type))  # Remove rows with NA in DBH.23 or stand_type
+  filter(!is.na(DBH.23) & !is.na(stand_type))  
 
 ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
-  geom_density(alpha = 0.5) +  # Density plot with transparency
+  geom_density(alpha = 0.5) +  
   labs(x = "DBH (inches)",
        y = "Density") +
   scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
@@ -884,6 +884,16 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   theme_minimal() +
   theme(legend.position = "top") +
   theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (inches)", y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)  
 
 #-------------------------------------------------------------------------------
 # tree-level final.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
