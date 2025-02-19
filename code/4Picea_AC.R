@@ -901,7 +901,7 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
 spruce <- picea %>%
   mutate(
     stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "RB", "RW", "BW") ~ "Mixed",
+      CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
       CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
       TRUE ~ NA_character_
     )
@@ -928,6 +928,16 @@ ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
   theme(legend.position = "top") +
   theme(legend.title = element_blank())
 
+ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)  
 
 #-------------------------------------------------------------------------------
 # plot.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
@@ -935,7 +945,7 @@ ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
 spruce <- picea %>%
   mutate(
     stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "RB", "RW", "BW") ~ "Mixed",
+      CODE %in% c("NW", "NR", "NB", "BN", "RW", "BW", "BN") ~ "Mixed",
       CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
       TRUE ~ NA_character_
     )
@@ -962,6 +972,16 @@ ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
   theme(legend.position = "top") +
   theme(legend.title = element_blank())
 
+ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Plot Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE) 
 #-------------------------------------------------------------------------------
 # now to determine if microsite variations in soil and topographic features influence tree and stand development and lead to o
 # final.ht ~ DBH.23 +.... Wykoff Equation 
