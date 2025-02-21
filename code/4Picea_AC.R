@@ -60,8 +60,7 @@ picea <- picea %>%
 ggplot(species_proportions, aes(x = factor(PLOT), y = Proportion, fill = SPP)) +
   geom_bar(stat = "identity", position = "stack") +
   facet_wrap(~ BLOCK, scales = "free_x") +
-  labs(x = "PLOT (Grouped by BLOCK)", y = "Proportion of Trees", 
-       title = "Proportion of Each Species by BLOCK and PLOT") +
+  labs(x = "Plot", y = "Proportion") +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
@@ -87,15 +86,14 @@ picea <- picea %>%
 
 xyplot(bapa~Proportion|CODE,data=picea)
 
-
+boxplot(bapa~CODE,data=picea)
 plot(picea$bapa, picea$tpa)  # most plots are between 20 and 140 bapa
 
 ggplot(picea, aes(x = bapa, y = tpa, color = CODE)) +
   geom_point(alpha = 0.7) +  
-  labs(title = "Picea BAPA vs TPA",
-       x = "BAPA",
+  labs(x = "BAPA",
        y = "TPA",
-       color = "CODE") +
+       color = "Species") +
   xlim(20, 140) +  
   theme_minimal()
 
@@ -141,12 +139,11 @@ picea_distribution <- picea %>%
 ggplot(picea_distribution, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
   geom_bar(stat = "identity", show.legend = FALSE) +
   facet_wrap(~ CODE) +  # Create separate plots for each CODE
-  labs(title = "Diameter Class Distribution by CODE",
-       x = "Diameter Classes (DBH in inches)",
+  labs(x = "Diameter Class (DBH in inches)",
        y = "Number of Trees") +
-  scale_x_discrete(drop = FALSE) +
+  scale_x_discrete(labels = c("0-2", "2-4", "4-6", "6-8", "8-10", "10-12"), drop = FALSE) +  
   theme_minimal() +
-  theme(axis.text.x = element_blank())  # 0-10" dbh, 0-2, 2-4, 4-6, 6-8, 8-10
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate labels for better readability
 
 #-------------------------------------------------------------------------------
 #generating height model
@@ -172,6 +169,7 @@ ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
 performance(ht.mod)
 summary(ht.mod)
 ranef(ht.mod)
+AIC(ht.mod) #7029
 
 #ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = picea,
@@ -179,7 +177,7 @@ ranef(ht.mod)
                 #random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
                 #na.action = na.pass,
                 #start = c(a = 4.5, b = -6),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000)) #AIC 9326
 
 #ht.mod3 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = spruce,
@@ -187,7 +185,7 @@ ranef(ht.mod)
                 #random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
                 #na.action = na.pass,
                 #start = c(a = 4.5,0,0,0, b = -6,0,0,0),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 1000000, maxIter = 500000))
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 1000000, maxIter = 500000)) #AIC 7053
 #control=lmeControl(opt="optim")
 
 
@@ -197,7 +195,7 @@ ranef(ht.mod)
                 #random = a + b ~ 1 | PLOT,  # Random intercept and slope for both
                 #na.action = na.pass,
                 #start = c(a = 4.5,0,0,0, b = -6,0,0,0),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000)) #AIC 7350
 
 #ht.mod5 <- nlme(HT.23 ~ 4.5+exp((a+b/DBH.23+1)),
                 #data = spruce,
@@ -205,7 +203,7 @@ ranef(ht.mod)
                 #random = a + b ~ 1 | BLOCK/PLOT,  # Random intercept and slope for both
                 #na.action = na.pass,
                 #start = c(a = 4.5,0,0,0,0,0,0,0,0,0,0, b = -6,0,0,0,0,0,0,0,0,0,0),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000)) #AIC 7310
 
 #ht.mod6 <- nlme(HT.23 ~ a + b * DBH.23 * Proportion,
                 #data = picea,
@@ -213,7 +211,7 @@ ranef(ht.mod)
                 #random = a + b ~ 1 | PLOT/SPP,
                 #na.action = na.pass,
                 #start = c(a = 4.5, b = -6),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000)) #AIC 9697
 #AIC(ht.mod, ht.mod2,ht.mod3,ht.mod4,ht.mod5, ht.mod6)
 #spruce$ht.fit <- predict(ht.mod2,spruce)
 #xyplot(ht.fit~DBH.23|CODE,data=spruce)
@@ -296,6 +294,14 @@ spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
 xyplot(bal~DBH.23|SPP,data=spruce.bal)
 xyplot(bal~DBH.23|CODE,data=spruce.bal)
 
+xyplot(bal ~ DBH.23 | CODE,
+       data = spruce.bal,
+       subset = SPP %in% c("R", "RW", "W", "N","NR","NW","B","BN","BR","BW"))
+xyplot(bal ~ DBH.23 | CODE, 
+       data = spruce.bal, 
+       subset = CODE %in% c("R", "RW", "W", "N", "NR", "NW", "B", "BN", "BR", "BW"),
+       layout = c(2, ceiling(length(unique(spruce.bal$CODE))/2))) 
+
 picea <- picea %>%
   left_join(spruce.bal %>% select(uid, BLOCK, PLOT, TREE, bal), 
             by = c("uid", "BLOCK", "PLOT", "TREE"))
@@ -310,6 +316,11 @@ spruce.htl <- picea%>%
 spruce.htl$htl[is.na(spruce.htl$htl)] <- 0
 xyplot(htl~final.ht|SPP,data=spruce.htl)
 xyplot(htl~final.ht|CODE,data=spruce.htl)
+
+xyplot(htl ~ final.ht | SPP,
+       data = spruce.htl,
+       subset = SPP %in% c("BS", "RS", "NS", "WS"))
+
 
 picea <- picea %>%
   left_join(spruce.htl %>% select(uid, BLOCK, PLOT, TREE, htl), 
@@ -396,7 +407,7 @@ picea %>%
 xyplot(qmd~tpa|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
-#volume calculation at the individual tree level
+#volume calculation at the individual tree level (ft3)
 #-------------------------------------------------------------------------------
 picea <- picea%>%
   mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
@@ -429,10 +440,9 @@ p.vol
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
 library(randomForest)
-
 library(VSURF)
 library(caTools)
-
+library(pscl)
 
 # premer start 
 
@@ -451,7 +461,7 @@ plot(d.set$DBH.23,d.set$HT.23)
 names(d.set)
 obs <- d.set$deductclass
 #obs[is.na(obs)] <- 0
-preds <- d.set[c(4,11,12,21:46,51:55,57:61,65,66,71,76:79)]
+preds <- d.set[c(4,11,12,21:46,51:54,57:61,65,66,71,76:79)]
 #preds[is.na(preds)] <- 0
 #vs <- VSURF(preds,obs,ncores = 4)
 #vs$varselect.pred
@@ -469,15 +479,19 @@ names(preds2)
 mod1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|1,
                    data=d.set,dist="negbin")
 summary(mod1)
+
 mod2 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|rs+sdi+bal+roughness+CODE,
                  data=d.set,dist="negbin")
 summary(mod2)
 AIC(mod1,mod2)
+
 mod3 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE,
                  data=d.set,dist="negbin")
 summary(mod3)
 AIC(mod3,mod2)
+
 d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
+
 mod3.1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE+SPP,
                  data=d.set,dist="negbin")
 summary(mod3.1)
@@ -485,6 +499,7 @@ AIC(mod3.1,mod3)
 
 performance(mod3.1)
 # dang, that is good. 
+
 picea$fit.deduction <- ifelse(picea$SPP=="RS"|
                               picea$SPP=="WS"|
                               picea$SPP=="BS"|
@@ -495,9 +510,23 @@ picea$fit.deduct.class[picea$fit.deduct.class>1] <- 1
 
 picea$adj.vol <- picea$vol*picea$fit.deduct.class
 plot(picea$vol,picea$adj.vol,ylim=c(0,15),xlim=c(0,15))
-plot(d.set$wsi,d.set$LAI)
+picea$final.vol <- picea$vol-picea$adj.vol
+
+#calclate plot level vol 
+picea <- picea %>%
+  group_by(BLOCK, PLOT) %>%
+  mutate(plot.vol = sum(final.vol, na.rm = TRUE))
+
+picea.2 <- picea %>% filter(CODE != "C")
+p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol)) +
+  geom_boxplot() +
+  ylab("Volume (ft³/ac)") +
+  xlab("Species Mixture") +
+  theme_minimal(base_size = 14) 
+print(p.vol.code)
 
 # for fun, looking at LAI
+plot(d.set$wsi,d.set$LAI)
 obs.d <- d.set$LAI
 preds.d <- d.set[c(12,21:46,51:55,57:61,65,66,71,76:79)]
 fun <- VSURF(preds.d,obs.d)
@@ -524,8 +553,6 @@ boxplot(LAI~CODE,data=d.set)
 # premer, end. 
 
 
-
-
 str(d.set)
 require(pscl)
 iz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
@@ -542,10 +569,7 @@ summary()
 plot(deductclass ~ SPP, data = d.set, subset = deductclass > 0,
      log = "y", main = "Count (positive)")
 
-
-
-
-# SPP, DBH, rs, htl
+# SPP, DBH, rs, Densic# SPP, DBH, rs, htl
 
 # let's try something.... 
 d.set$deductclass[is.na(d.set$ded)] <- 0
@@ -584,10 +608,6 @@ dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
                                    data=much,method="exhaustive",really.big=TRUE)
 
 
-
-
-
-
 require(performance)
 performance(mod8)
 
@@ -596,190 +616,14 @@ BIC(mod8)
 mod8null <- update(mod8,.~1)
 pchisq(2*logLik(mod8)-logLik(mod8null),df=16,lower.tail = FALSE)/16
 
-
-
-
 expected.counts<-m2$fitted.values
 chisq.term<-(obs.counts-expected.counts)^2/expected.counts
 df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
                 Ek=expected.counts,ChiSqk=chisq.term)
 
 
-
-
-
 #spp, dbh, htl
 
-response <- "deductclass"  
-predictors <- c("SPP", "DBH.23", "HT.23", "HCB.23", "LCR.23", "LAI", "CODE", "elevation", 
-                "tri", "tpi", "roughness", "slope", "aspect", "flowdir", "tmin", "tmean", 
-                "tmax", "dew", "vpdmax", "vpdmin", "McNab", "Bolstad", "Profile", "Planform", 
-                "Winds10", "Winds50", "SWI", "RAD", "ppt", "Parent", "Lithic", "Redox", 
-                "dep", "ex.k", "nit", "SWC2", "MeanWD", "Proportion", "Min_depth", "WD2000", 
-                "WD2020", "WHC", "ex.mg", "ex.ca", "ph", "bapa", "tpa", "hd", "bal", "htl", 
-                "vicary.si", "steinman.si", "topht", "qmd", "rdi", "rs", "sdi", "vol")
-
-picea_varsel <- picea %>%
-  filter(!is.na(deductclass) & is.numeric(deductclass)) %>%
-  select(c(response, predictors))
-picea_varsel[is.na(picea_varsel)] <- 0
-
-# split data into train and test sets
-set.seed(123)  # For reproducibility
-split <- sample.split(picea_varsel$deductclass, SplitRatio = 0.6666666666666) 
-train <- subset(picea_varsel, split == TRUE)
-test <- subset(picea_varsel, split == FALSE)
-
-train[] <- lapply(train, function(x) { 
-  if(is.numeric(x)) {
-    x[is.nan(x)] <- 0
-    x[is.infinite(x)] <- 0
-  }
-  return(x)
-})
-
-
-vsurf <- VSURF(train[, predictors], train[, response], parallel = TRUE, ncores = 3)
-obs <- picea$deductclass
-preds <- picea()
-vsurf2 <- VSURF(predictors,response)
-
-
-vsurf$varselect.pred
-
-names(train[,1:58])
-
-selected_var_cont <- c(bal+sdi+rdi+Min_depth+steinman.si,HT.23)
-
-#-------------------------------------------------------------------------------
-#regsubsets variable selection
-#-------------------------------------------------------------------------------
-library(leaps)
-
-picea_varsel2 <- picea %>%
-  filter(!is.na(deductclass) & is.numeric(deductclass))
-picea_varsel2[is.na(picea_varsel2)] <- 0
-
-picea_varsel2[] <- lapply(picea_varsel2, function(x) { 
-  if(is.numeric(x)) {
-    x[is.nan(x)] <- 0
-    x[is.infinite(x)] <- 0
-  }
-  return(x)
-})
-
-
-models.iv <- regsubsets(deductclass~SPP + DBH.23 + HT.23 + HCB.23 + LCR.23 + LAI + CODE + elevation + 
-                        tri + tpi + roughness + slope + aspect + flowdir + tmin + tmean + 
-                        tmax + dew + vpdmax + vpdmin + McNab + Bolstad + Profile + Planform + 
-                        Winds10 + Winds50 + SWI + RAD + ppt + Parent + Lithic + Redox + 
-                        dep + ex.k + nit + SWC2 + MeanWD + Proportion + Min_depth + WD2000 + 
-                        WD2020 + WHC + ex.mg + ex.ca + ph + bapa + tpa + hd + bal+ htl + 
-                        vicary.si + steinman.si + topht + qmd + rdi + rs + sdi + vol,data=picea_varsel2,really.big = TRUE,method="exhaustive")
-
-summary(models.iv)
-
-# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, flowdir, tmax, dew, WD2000, bal, htl, qmd
-# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, tmax, bal, htl, qmd
-#-------------------------------------------------------------------------------
-#volume deduction
-#-------------------------------------------------------------------------------
-picea2 <- filter(picea,HT.23!="NA")
-plot(density(na.omit(picea2$T_DEDUCT))) #look at a zero-inflated model
-picea2$T_DEDUCT[is.na(picea2$T_DEDUCT)] <- 0
-
-hist(picea2$T_DEDUCT)
-xyplot(T_DEDUCT~DBH.23|CODE,data=picea2) #most deductions in plots with NS, weevil
-
-unique(picea2$T_DEDUCT)
-picea2$deductclass <- 25*as.integer((picea2$T_DEDUCT+(25/2))/25)
-hist(picea2$deductclass)
-
-
-mod1 <- glmer(deductclass~SPP + Min_depth + bal+(1|BLOCK), data=picea2,family="poisson") #mixed poisson
-summary(mod1)
-
-mod2 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK), #mixed zero-inflated poisson
-                data=picea2,
-                ziformula = ~.,
-                family=poisson,
-                na.action = "na.omit")
-summary(mod2)
-
-
-mod3 <- glmmTMB(deductclass~SPP+Min_depth+bal+(1|BLOCK),
-                data=picea2,
-                ziformula = ~SPP,
-                family=nbinom1,
-                na.action = "na.omit")
-
-AIC(mod1,mod2,mod3)
-
-
-# Matt Russell zero-inflated models
-library(pscl)
-
-# vsurf 
-mod4 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si,
-                  data = picea2)
-summary(mod4)
-
-mod5 <- zeroinfl(deductclass ~ bal+sdi+rdi+Min_depth+steinman.si, 
-                   dist = "negbin", data = picea2)
-summary(mod5)
-
-AIC(mod4, mod5)
-
-# regsubsets
-mod6 <- zeroinfl(deductclass ~ SPP + CODE + flowdir + tmax + dew + WD2000 + htl + bal + qmd,
-                 data = picea2)
-summary(mod6)
-
-mod7 <- zeroinfl(deductclass ~ tmax+dew+flowdir+bal+qmd,
-                 data = picea2)
-summary(mod7)
-
-AIC(mod6, mod7, mod8)
-
-
-mod8 <- zeroinfl(deductclass ~dew + flowdir + qmd + bal, 
-                 dist = "negbin", data = picea2)
-summary(mod8)
-AIC(mod8)
-
-# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, flowdir, tmax, dew, WD2000, bal, htl, qmd
-# SPPNS, SPPRM, SPPWP, CODEBR, CODEN, tmax, bal, htl, qmd
-
-ggplot(picea2, aes(x = SPP, y = deductclass)) +
-  geom_boxplot() +
-  labs(title = "Boxplot",
-       x = "SPP",
-       y = "Deductclass") +
-  theme_minimal()
-
-# fit missing values, seems to be at the plot level and not individual tree
-picea$ded_fitted <- predict(mod8, newdata = picea, type = "response")
-
-picea$ded_final <- ifelse(is.na(picea$T_DEDUCT), picea$ded_fitted, picea$T_DEDUCT)
-
-summary(picea$ded_final)
-hist(picea$ded_final)
-
-# final vol after stem form deductions
-picea$ded_percentage <- picea$ded_final / 100
-picea$vol_final <- picea$vol * (1 - picea$ded_percentage)
-
-summary(picea$vol_final)
-hist(picea$vol_final)
-
-xyplot(vol_final~DBH.23|CODE,data=picea)
-
-p.vol.code <- ggplot(picea, aes(factor(CODE), vol_final)) +
-  geom_boxplot() +
-  ylab("Volume (cubic feet)") +
-  xlab("Species Mixture") +
-  ggtitle("Volume by Species Mixture")
-print(p.vol.code)
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -789,7 +633,7 @@ plot_estimates <- picea %>%
   mutate(qmd.2 = qmd(bapa,tpa),
          rd.2 = bapa/sqrt(qmd.2)) %>%
   group_by(BLOCK, PLOT, CODE) %>%  # Include CODE here for species code
-  summarise(total_vol = sum(vol, na.rm = TRUE),  
+  summarise(total_vol = sum(final.vol, na.rm = TRUE),  
             BAPA = mean(bapa),
             TPA = mean(tpa),
             QMD = mean(qmd.2),
@@ -802,7 +646,7 @@ oy <- function(data) {
   results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
   
   for (i in 1:nrow(data)) {
-    mixture <- as.character(data$CODE[i])  # Force CODE to be a character
+    mixture <- as.character(data$CODE[i])  # make CODE a character
     
     if (nchar(mixture) == 2) { # only calculate overyielding for mixtures
       species1 <- substr(mixture, 1, 1)  
@@ -832,13 +676,13 @@ avg_oy <- oy_results %>%
 print(avg_oy)
 
 ggplot(avg_oy, aes(x = Mixture, y = avg_oy)) +
-  geom_bar(stat = "identity", fill = "grey") +  # Bar chart for average overyielding
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  # Reference line at 1
-  labs(title = "Overyielding by Species Mixture", 
-       x = "Species Mixture", 
-       y = "Average Overyielding") +
+  geom_bar(stat = "identity", fill = "grey") +  
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
+  labs(x = "Species Mixture", 
+       y = "Overyielding Threshold") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = c(1))  
 
         
 # calculate transgressive overyielding
@@ -878,25 +722,400 @@ print(avg_toy)
 ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(title = "Transgressive Overyielding by Species Mixture", 
-       x = "Species Mixture", 
-       y = "Transgressive Overyielding") +
+  labs(x = "Species Mixture", 
+       y = "Threshold") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = c(1))  
+
+#-------------------------------------------------------------------------------
+# bar chart of plot volume by mixture separated by each SPP in the mixture
+#-------------------------------------------------------------------------------
+picea.vol <- picea %>%
+  filter(CODE != "C") %>% 
+  group_by(CODE) %>%
+  summarise(
+    mean.vol = mean(plot.vol, na.rm = TRUE),
+    sd.vol = sd(plot.vol, na.rm = TRUE)
+  )
+
+picea.vol <- picea.vol %>% #adjust the values for CODE "BR" since something weird was happening before, manually calculated
+  mutate(
+    mean.vol = ifelse(CODE == "BR", 164.9, mean.vol),  # set BR mean to 164.9
+    sd.vol = ifelse(CODE == "BR", 137.3, sd.vol)       # set BR sd to 137.3
+  )
+
+ggplot(picea.vol, aes(x = CODE, y = mean.vol, fill = CODE)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = mean.vol - sd.vol, ymax = mean.vol + sd.vol), width = 0.2) +  # Add error bars
+  labs(x = "Species Mixture", y = "Average Plot Volume") +
+  theme_minimal() +
+  theme(legend.position = "none")
+#-------------------------------------------------------------------------------
+# ht dbh graphics by each SPP in each mixture it occurs in
+#-------------------------------------------------------------------------------
+library(patchwork)
+
+# BS plot
+plot_bs <- ggplot(picea %>% filter(SPP == "BS", CODE %in% c("B", "BR", "BW", "BN")) %>%
+                    group_by(CODE, DBH.23) %>%
+                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  labs(x = "DBH (in)", y = "Height (ft)", color = "Species Mixture") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# RS plot
+plot_rs <- ggplot(picea %>% filter(SPP == "RS", CODE %in% c("R", "BR", "RW", "NR")) %>%
+                    group_by(CODE, DBH.23) %>%
+                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  labs(x = "DBH (in)", y = "Height (ft)", color = "Species Mixture") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# NS plot
+plot_ns <- ggplot(picea %>% filter(SPP == "NS", CODE %in% c("N", "BN", "NW", "NR")) %>%
+                    group_by(CODE, DBH.23) %>%
+                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  labs(x = "DBH (in)", y = "Height (ft)", color = "Species Mixture") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+# WS plot
+plot_ws <- ggplot(picea %>% filter(SPP == "WS", CODE %in% c("W", "BW", "NW", "RW")) %>%
+                    group_by(CODE, DBH.23) %>%
+                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  labs(x = "DBH (in)", y = "Height (ft)", color = "Species Mixture") +  
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
+
+#-------------------------------------------------------------------------------
+# ht dbh graphics by SPP in each mixture 
+#-------------------------------------------------------------------------------
+picea.3 <- picea %>%
+  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         CODE != "C",
+         !(CODE == "NR" & SPP == "BS")) %>%  
+  group_by(SPP, CODE, DBH.23) %>%
+  summarise(avg.final.ht = mean(final.ht, na.rm = TRUE), .groups = "drop")
+
+plot.1 <- ggplot(picea.3, aes(x = DBH.23, y = avg.final.ht, color = SPP)) +
+  geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
+  labs(x = "DBH (in)", y = "Height (ft)", color = "Species") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~CODE, ncol = 2)  
+
+plot.1
+
+#-------------------------------------------------------------------------------
+# proportion bapa by the proportion of species in each mixture 
+#-------------------------------------------------------------------------------
+picea.4 <- picea %>%
+  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         !(CODE %in% c("C", "B", "R", "N", "W")),  # Proper exclusion
+         !(CODE == "NR" & SPP == "BS")) %>%  
+  group_by(SPP, CODE, Proportion) %>%
+  summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop")
 
 
+plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
+  geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
+  labs(x = "Species Proportion", y = "BAPA", color = "Species") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~CODE, ncol = 2)  
+
+plot.2
 
 
+picea.4 <- picea %>%
+  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         !(CODE %in% c("C", "B", "R", "N", "W")),  
+         !(CODE == "NR" & SPP == "BS")) %>%  
+  group_by(SPP, CODE, Proportion) %>%
+  summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop")
+
+plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
+  geom_point(alpha = 0.7, size = 2) +  # Use points instead of lines
+  labs(x = "Species Proportion", y = "BAPA", color = "Species") +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~CODE, ncol = 2)  
+
+plot.2
+
+#-------------------------------------------------------------------------------
+# DBH distribution based on monculture vs. mixed Pretzsch and Biber 2016
+#-------------------------------------------------------------------------------
+spruce <- picea %>%
+  mutate(stand_type = case_when(
+    CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
+    CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
+    TRUE ~ NA_character_
+  )) %>%
+  filter(!is.na(DBH.23) & !is.na(stand_type))  
+
+ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (inches)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  # Histogram with count on y-axis
+  labs(x = "DBH (inches)",
+       y = "Number of Trees") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (inches)", y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)  
+
+#-------------------------------------------------------------------------------
+# tree-level final.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
+#-------------------------------------------------------------------------------
+spruce <- picea %>%
+  mutate(
+    stand_type = case_when(
+      CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
+      CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(final.vol) & !is.na(stand_type))  # Remove rows with NA in volume or stand_type
+
+ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
+  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  # Histogram with count on y-axis
+  labs(x = "Volume (cubic feet)",
+       y = "Number of Trees") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)  
+
+#-------------------------------------------------------------------------------
+# plot.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
+#-------------------------------------------------------------------------------
+spruce <- picea %>%
+  mutate(
+    stand_type = case_when(
+      CODE %in% c("NW", "NR", "NB", "BN", "RW", "BW", "BN") ~ "Mixed",
+      CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(plot.vol) & !is.na(stand_type))  # Remove rows with NA in plot.vol or stand_type
+
+ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Plot Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
+  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  # Histogram with count on y-axis
+  labs(x = "Plot Volume (cubic feet)",
+       y = "Number of Trees") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  theme(legend.title = element_blank())
+
+ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
+  geom_density(alpha = 0.5) +  # Density plot with transparency
+  labs(x = "Plot Volume (cubic feet)",
+       y = "Density") +
+  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE) 
+#-------------------------------------------------------------------------------
+# now to determine if microsite variations in soil and topographic features influence tree and stand development and lead to o
+# final.ht ~ DBH.23 +.... Wykoff Equation 
+#-------------------------------------------------------------------------------
+hist(picea$final.ht)
+picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+obs <- picea5$final.ht
+#obs[is.na(obs)] <- 0
+preds <- picea5[c(4,11,12,21:46,51:55,57:61,65,66,71,76:79)]
+#preds[is.na(preds)] <- 0
+#vs <- VSURF(preds,obs,ncores = 4)
+#vs$varselect.pred
+xyplot(final.ht~DBH.23|SPP,data=picea5)
+preds2 <- picea5[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
+#preds2[is.na(preds2)] <- 0
+#obs <- picea5$final.ht
+#obs[is.na(obs)] <- 0
+#vs <- VSURF(preds,obs)
+#vs$varselect.pred
+#names(preds2)
+
+#sdi, qmd, tpa for preds
+#rs, bal, bapa for preds2
+
+rf.frame <- ht1$coefficients$random$SPP
+rf.frame
+rf.frame <- as.data.frame(rf.frame)
+
+library(stringr)
+rf.frame2 <- rf.frame %>%
+  rownames_to_column(var = "combined_column") %>%
+  mutate(
+    split_values = str_split(combined_column, "/"),  
+    BLOCK = sapply(split_values, `[`, 1),  
+    PLOT = as.integer(sapply(split_values, `[`, 2)),  
+    SPP = sapply(split_values, `[`, 3)  
+  ) %>%
+  select(-combined_column, -split_values)  
+print(rf.frame2)
+
+picea5 <- picea5 %>%
+  left_join(rf.frame2 %>% select(BLOCK, PLOT, SPP, a, b), by = c("BLOCK", "PLOT", "SPP"))
 
 
+hist(picea5$a)
+hist(picea5$b)
+
+summary(picea5$a)
+summary(picea5$b)
+
+pairs(~ a + b + rs + bapa + bal, data = picea5)
 
 
+a1 <- lm(a ~ rs+ bal + qmd, data = picea5)
+summary(a1)
+AIC(a1)
+par(mfrow = c(2,2))
+plot(a1)
+par(mfrow = c(1,1))
+
+b1 <- lm(b ~ bal, data = picea5)
+summary(b1)
+AIC(b1)
+par(mfrow = c(2,2))
+plot(b1)
+par(mfrow = c(1,1))
+
+picea5$a.pred <- predict(a1, newdata = picea5)
+picea5$b.pred <- predict(b1, newdata = picea5)
+
+#picea5 <- na.omit(picea5)
+ht1 <- nlme(HT.23 ~ 4.5 + exp(a.pred + b.pred / (DBH.23 + 1)),
+                     data = picea5,  
+                     fixed = a.pred + b.pred ~ 1,
+                     random = a.pred + b.pred ~ 1 | BLOCK/PLOT/SPP,
+                     na.action = na.pass,
+                     start = c(a.pred = 4.5, b.pred = -6),
+                     control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+summary(ht1)
+AIC(ht1)
+
+picea5 <- picea5 %>%
+  mutate(
+    BLOCK = as.factor(BLOCK),
+    PLOT = as.factor(PLOT),
+    SPP = as.factor(SPP)
+  )
+# orginal ht model
+ht1 <- nlme(HT.23 ~ 4.5 + exp(a + b / (DBH.23 + 1)),
+            data = picea,
+            fixed = a + b ~ 1,
+            random = a + b ~ 1 | BLOCK/PLOT/SPP,  
+            na.action = na.pass,
+            start = c(a = 4.5, b = -6),
+            control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+summary(ht1)
+AIC(ht1)
 
 
+#-------------------------------------------------------------------------------
+#bapa ~  
+#-------------------------------------------------------------------------------
+hist(picea$bapa)
+picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+obs <- picea5$bapa
+#obs[is.na(obs)] <- 0
+names(picea5)
+preds <- picea5[c(4,6,11,12,21:46,50:61,66,70,71:78,79,85)]
+preds2 <- picea5[c(4,6,11,12,21:46,50:61,66,70:72)] #just keep code, spp, site vars
+#preds[is.na(preds)] <- 0
+vs <- VSURF(preds,obs)
+vs$varselect.pred
+names(preds)
 
+#rdi for preds, circular
+#CODE, SPP, Winds50, Winds10, ex.ca for preds2
 
+#-------------------------------------------------------------------------------
+# look at total.vol by plot or tree level?
+#-------------------------------------------------------------------------------
+hist(picea$plot.vol)
+picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+obs <- picea5$plot.vol
+#obs[is.na(obs)] <- 0
+names(picea5)
+preds <- picea5[c(4,6,11,12,21:46,50:61,66,70,71:78,79)]
+#preds[is.na(preds)] <- 0
+vs <- VSURF(preds,obs)
+vs$varselect.pred
+names(preds)
 
-
+#preds ex.k, rdi, CODE, qmd, tpa, roughness, LAI, SPP, Planform
 
 
 
