@@ -100,6 +100,7 @@ xyplot(bapa ~ tpa | CODE, data = picea, type="l")
 xyplot(bapa~Proportion|CODE,data=picea)
 
 #convert to metric 
+#error because need to calculate qmd, vol first which is further down
 picea <- picea %>%
   mutate(
     qmdcm = qmd * 2.54,  
@@ -301,6 +302,81 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #xyplot(final.ht~DBH.23|SPP,data=picea)
 #xyplot(final.ht~DBH.23|CODE,data=picea)
 
+#-------------------------------------------------------------------------------
+#generating crown ratio model
+#-------------------------------------------------------------------------------
+library(dplyr)
+library(nlme)
+
+crownratio  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
+xyplot(HCB.23~DBH.23|SPP,data=crownratio)
+
+
+# Northeast FVS Variant Guide
+# WS SPP Group 3, RS BS NS SPP Group 4
+# FVS NE Variant Coef by SPP Group
+coefficients <- data.frame(
+sppgroup = c(3, 4),
+b1 = c(7.840, 5.540),
+b2 = c(0.0057, 0.0072),
+b3 = c(1.272, 4.200),
+b4 = c(-0.1420, -0.0530)
+)
+
+crownratio <- crownratio %>%
+mutate(sppgroup = case_when(
+SPP == "WS" ~ 3,  
+SPP %in% c("NS", "BS", "RS") ~ 4,  
+TRUE ~ NA_integer_  # NA for other SPP
+))
+
+crownratio <- crownratio %>%
+  left_join(coefficients, by = "sppgroup")  
+
+# impute missing crown ratios using the basic formula from FVS NE Variant
+# guessing this doesn't calibrate to the LCR.23 heights measured in the field
+# looks like this assigned the same cr.fit value by SPP, so all NS trees have the same crown ratio which isn't true?
+crownratio <- crownratio %>%
+  mutate(
+  cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
+  final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
+  )
+
+library(lattice)
+xyplot(final.cr ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+# crown ratio model using nlme/following ht.mod layout
+# could not get to run, is the issue because of the 2 species groups so the start parameters vary?
+#cr.mod <- nlme(
+  #LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
+  #data = crownratio,  
+  #fixed = b1 + b2 + b3 + b4 ~ sppgroup,
+  #random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/PLOT/SPP,  
+  #na.action = na.pass,  
+  #start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420,
+  #b1 = 5.540, b2 = 0.0072, b3 = 4.200, b4 = -0.0530), 
+  #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B")
+  #)
+
+cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
+                data = crownratio,
+                fixed = a + b ~ 1,
+                random = a + b ~ 1 | BLOCK/PLOT/SPP,  
+                na.action = na.pass,
+                start = c(a = 4.5, b = -6),
+                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+
+performance(cr.mod2)
+summary(cr.mod2)
+ranef(cr.mod2)
+AIC(cr.mod2)
+
+picea$cr.fit2 <- predict(cr.mod2, crownratio)
+xyplot(cr.fit2 ~ DBH.23 | SPP, data = crownratio)
+
+picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
+xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio)
+xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
 
 #-------------------------------------------------------------------------------
 #basal area larger (bal) - (tree level)
@@ -1349,7 +1425,6 @@ ht1 <- nlme(HT.23 ~ 4.5 + exp(a + b / (DBH.23 + 1)),
 
 summary(ht1)
 AIC(ht1)
-
 
 #-------------------------------------------------------------------------------
 #bapa ~  
