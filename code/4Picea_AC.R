@@ -335,7 +335,7 @@ crownratio <- crownratio %>%
 
 # impute missing crown ratios using the basic formula from FVS NE Variant
 # guessing this doesn't calibrate to the LCR.23 heights measured in the field
-# looks like this assigned the same cr.fit value by SPP, so all NS trees have the same crown ratio which isn't true?
+# looks like this assigned the same cr.fit value by SPP don't vary that much .2-.5 CR. For example, I had a measured CR on 0.82 but the predicted CR was .28. 
 crownratio <- crownratio %>%
   mutate(
   cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
