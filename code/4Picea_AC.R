@@ -101,27 +101,27 @@ xyplot(bapa~Proportion|CODE,data=picea)
 
 #convert to metric 
 #error because need to calculate qmd, vol first which is further down
-picea <- picea %>%
-  mutate(
-    qmdcm = qmd * 2.54,  
-    baph = bapa * 2.47105,  
-    tph = tpa * 2.47105,
-    plotvolha = plot.vol * 0.0693 
-  )
+#picea <- picea %>%
+  #mutate(
+    #qmdcm = qmd * 2.54,  
+    #baph = bapa * 2.47105,  
+    #tph = tpa * 2.47105,
+   #plotvolha = plot.vol * 0.0693 
+  #)
 
-uniquedata <- picea %>%
-  distinct(qmdcm, BLOCK, PLOT, CODE)
+#uniquedata <- picea %>%
+  #distinct(qmdcm, BLOCK, PLOT, CODE)
 
-print(uniquedata, n = Inf)
+#print(uniquedata, n = Inf)
 
-avg <- picea %>%
-  group_by(CODE) %>%
-  summarise(
-    avg_baph = mean(topht, na.rm = TRUE),
-    .groups = 'drop'  
-  )
+#avg <- picea %>%
+  #group_by(CODE) %>%
+  #summarise(
+    #avg_baph = mean(topht, na.rm = TRUE),
+    #.groups = 'drop'  
+  #)
 
-print(avg, n = Inf)  
+#print(avg, n = Inf)  
 
 #-------------------------------------------------------------------------------
 # #DBH distribution
@@ -305,45 +305,47 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #-------------------------------------------------------------------------------
 #generating crown ratio model
 #-------------------------------------------------------------------------------
-library(dplyr)
-library(nlme)
+#library(dplyr)
+#library(nlme)
 
-crownratio  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
-xyplot(HCB.23~DBH.23|SPP,data=crownratio)
+#crownratio  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
+#xyplot(HCB.23~DBH.23|SPP,data=crownratio)
 
 
 # Northeast FVS Variant Guide
 # WS SPP Group 3, RS BS NS SPP Group 4
 # FVS NE Variant Coef by SPP Group
-coefficients <- data.frame(
-sppgroup = c(3, 4),
-b1 = c(7.840, 5.540),
-b2 = c(0.0057, 0.0072),
-b3 = c(1.272, 4.200),
-b4 = c(-0.1420, -0.0530)
-)
+#coefficients <- data.frame(
+#sppgroup = c(3, 4),
+#b1 = c(7.840, 5.540),
+#b2 = c(0.0057, 0.0072),
+#b3 = c(1.272, 4.200),
+#b4 = c(-0.1420, -0.0530)
+#)
 
-crownratio <- crownratio %>%
-mutate(sppgroup = case_when(
-SPP == "WS" ~ 3,  
-SPP %in% c("NS", "BS", "RS") ~ 4,  
-TRUE ~ NA_integer_  # NA for other SPP
-))
+#crownratio <- crownratio %>%
+#mutate(sppgroup = case_when(
+#SPP == "WS" ~ 3,  
+#SPP %in% c("NS", "BS", "RS") ~ 4,  
+#TRUE ~ NA_integer_  # NA for other SPP
+#))
 
-crownratio <- crownratio %>%
-  left_join(coefficients, by = "sppgroup")  
+#crownratio <- crownratio %>%
+  #left_join(coefficients, by = "sppgroup")  
+
+
 
 # impute missing crown ratios using the basic formula from FVS NE Variant
 # guessing this doesn't calibrate to the LCR.23 heights measured in the field
 # looks like this assigned the same cr.fit value by SPP don't vary that much .2-.5 CR. For example, I had a measured CR on 0.82 but the predicted CR was .28. 
-crownratio <- crownratio %>%
-  mutate(
-  cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
-  final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
-  )
+#crownratio <- crownratio %>%
+  #mutate(
+  #cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
+  #final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
+  #)
 
-library(lattice)
-xyplot(final.cr ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+#library(lattice)
+#xyplot(final.cr ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
 
 # crown ratio model using nlme/following ht.mod layout
 # could not get to run, is the issue because of the 2 species groups so the start parameters vary?
@@ -358,25 +360,25 @@ xyplot(final.cr ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS
   #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B")
   #)
 
-cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
-                data = crownratio,
-                fixed = a + b ~ 1,
-                random = a + b ~ 1 | BLOCK/PLOT/SPP,  
-                na.action = na.pass,
-                start = c(a = 4.5, b = -6),
-                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
+#cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
+                #data = crownratio,
+                #fixed = a + b ~ 1,
+                #random = a + b ~ 1 | BLOCK/PLOT/SPP,  
+                #na.action = na.pass,
+                #start = c(a = 4.5, b = -6),
+                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
-performance(cr.mod2)
-summary(cr.mod2)
-ranef(cr.mod2)
-AIC(cr.mod2)
+#performance(cr.mod2)
+#summary(cr.mod2)
+#ranef(cr.mod2)
+#AIC(cr.mod2)
 
-picea$cr.fit2 <- predict(cr.mod2, crownratio)
-xyplot(cr.fit2 ~ DBH.23 | SPP, data = crownratio)
+#picea$cr.fit2 <- predict(cr.mod2, crownratio)
+#xyplot(cr.fit2 ~ DBH.23 | SPP, data = crownratio)
 
-picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
-xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio)
-xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+#picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
+#xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio)
+#xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
 
 #-------------------------------------------------------------------------------
 #basal area larger (bal) - (tree level)
@@ -422,7 +424,54 @@ xyplot(htl ~ final.ht | SPP,
 picea <- picea %>%
   left_join(spruce.htl %>% select(uid, BLOCK, PLOT, TREE, htl), 
             by = c("uid", "BLOCK", "PLOT", "TREE"))
+
 #-------------------------------------------------------------------------------
+#maximum crown width (tree level)
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(DBH = as.numeric(DBH.23), 
+         MCW = mapply(MCW, SPP = SPP, DBH = DBH))
+
+
+#-------------------------------------------------------------------------------
+#CCF 
+#-------------------------------------------------------------------------------
+#picea <- picea %>%
+  #mutate(
+    #CL = HT.23 - HCB.23,   #CL = crown length
+    #CD = (CL + MCW) / 2     # CD = crown width diameter
+  #)
+
+#picea <- picea %>%
+  #mutate(
+    #CA = pi * (CD / 2)^2  # CA = crown area
+  #)
+
+#picea <- picea %>%
+  #group_by(BLOCK, PLOT) %>%
+  #mutate(CA.plot = sum(CA, na.rm = TRUE)) %>%
+  #ungroup()
+
+#picea <- picea %>%
+  #mutate(CCF = (CA / CA.plot) * 10) #1/10 acre plots
+
+
+# mikes formula
+spruce.ccf <- picea%>%
+  mutate(CW = mapply(MCW,SPP=SPP,DBH=DBH),
+         CA = (CW/2)^2*pi,
+         CA.exp = CA*10)%>%
+  group_by(BLOCK,PLOT)%>%
+  summarize(CCF = (sum(CA.exp)/43560)*100) #should I divide by 4356 to represent 1/10 acre plots or no
+
+#picea.m <- left_join(spruce,spruce.ccf)
+#plot(picea.m$bapa,picea.m$CCF)
+  
+picea <- picea %>%
+  left_join(spruce.ccf %>% select(BLOCK, PLOT, CCF), 
+            by = c("BLOCK", "PLOT"))
+
+--------------------------------------------------------------------
 #Site Index - (calculated at tree level, summarize by Block and Plot)
 #-------------------------------------------------------------------------------
 sum(is.na(picea$final.ht))  # Number of missing values in final.ht
@@ -444,8 +493,9 @@ picea <- picea%>%
 picea %>%
   group_by(BLOCK, PLOT) %>%
   summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
+
 #-------------------------------------------------------------------------------
-#Top Height (vicary height) - (plot level)
+#Top Height/HT40 (vicary height) - (tree or plot level?)
 #-------------------------------------------------------------------------------
 picea <- picea%>%
   mutate(topht=mapply(vicary.height,SPP="RS", age=28, si=vicary.si))
@@ -623,16 +673,16 @@ p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol)) +
 print(p.vol.code)
 
 #convert to metric 
-picea.2 <- picea.2 %>%
-  mutate(plot.vol_m3ha = plot.vol * 0.070)
+#picea.2 <- picea.2 %>%
+  #mutate(plot.vol_m3ha = plot.vol * 0.070)
 
-p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol_m3ha)) +
-  geom_boxplot() +
-  ylab("Volume (m³/ha)") +
-  xlab("Species Mixture") +
-  theme_minimal(base_size = 14) 
+#p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol_m3ha)) +
+  #geom_boxplot() +
+  #ylab("Volume (m³/ha)") +
+  #xlab("Species Mixture") +
+  #theme_minimal(base_size = 14) 
 
-print(p.vol.code)
+#print(p.vol.code)
 
 # for fun, looking at LAI
 plot(d.set$wsi,d.set$LAI)
@@ -732,7 +782,6 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 
 
 #spp, dbh, htl
-
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -838,7 +887,126 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(breaks = c(1))  
+
 #-------------------------------------------------------------------------------
+# HCB Model
+#-------------------------------------------------------------------------------
+#picea10 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+#h.set <- picea10
+#h.set$HCB.23[is.na(h.set$HCB.23)] <- 999
+#h.set <- dplyr::filter(h.set,HCB.23<998)
+
+#names(h.set)
+#obs <- h.set$HCB.23
+#obs[is.na(obs)] <- 0
+#preds <- h.set[c(4,6,7,11,12,21:46,50:61,65,66,71,72,75,76,77,78,79,80,81,82)]
+#preds2 <- h.set[c(4,6,7,11,12,21:46,50:54,57:61)] #take out stand structure metrics
+#preds[is.na(preds)] <- 0
+#vs <- VSURF(preds2,obs,ncores = 4)
+#vs$varselect.pred
+#names(preds2)
+
+#HT.23, log(bal), log(CCF), hd, DBH.23 for A. Weiskittel paper
+#SPP, CODE, rdi, vicary.si (circular), bal for preds
+#SPP, HT.23, DBH.23, CODE for preds2
+# tried just leaving site vars in as only predictors but only picked up RS_Suitability
+picea.11 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+picea.11 <- dplyr::filter(picea, (SPP %in% c("WS", "NS", "RS", "BS")) & (CODE != "C")) # filter out the control (C) plots too?
+
+model <- lm(HCB.23 ~I(log(CCF)) + HT.23 + bal + factor(SPP) + factor(CODE), data = picea.11)
+summary(model)
+AIC(model)
+
+residuals <- residuals(model)
+ggplot(data.frame(fitted = fitted(model), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+
+
+rmse <- rmse(model)
+print(paste("RMSE:", rmse))
+
+MB <- mean(residuals)
+print(paste("Mean Bias (MB):", MB))
+
+MAB <- mean(abs(residuals))
+print(paste("Mean Absolute Bias (MAB):", MAB))
+
+model2 <- lm(HCB.23 ~ HT.23 +  DBH.23 + factor(SPP) + factor(CODE), data = picea.11) #adding CCF improves the AIC score by 1 but doesn't come up as significant 
+summary(model2)
+AIC(model2)
+
+residuals <- residuals(model2)
+ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+
+rmse <- rmse(model2)
+print(paste("RMSE:", rmse))
+
+MB <- mean(residuals)
+print(paste("Mean Bias (MB):", MB))
+
+MAB <- mean(abs(residuals))
+print(paste("Mean Absolute Bias (MAB):", MAB))
+
+# model2 is better
+coefficients <- coef(model2)
+print(coefficients)
+
+B0 <- 2.3448      # Intercept
+B1 <- 0.4610     # HT.23
+B2 <- -1.0785     #DBH.23  
+B3 <- -3.6287    # factor(SPP)NS
+B4 <- -2.6370    # factor(SPP)RS
+B5 <- -2.5058     # factor(CODE)BR
+B6 <- 2.0202    # factor(CODE)BW
+B7 <- 2.4756    # factor(CODE)N
+B8 <- 2.4157     # factor(CODE)NW
+B9 <- -2.2884    #factor(CODE)R
+
+picea$X <- B0 + 
+  B1 * picea$HT.23 + 
+  B2 * picea$DBH.23 + 
+  
+  ifelse(picea$SPP == "NS", B3, 0) + 
+  ifelse(picea$SPP == "RS", B4, 0) +
+  
+  ifelse(picea$CODE == "BR", B5, 0) +
+  ifelse(picea$CODE == "BW", B6, 0) +
+  ifelse(picea$CODE == "N", B7, 0) +
+  ifelse(picea$CODE == "NW", B8, 0) +
+  ifelse(picea$CODE == "R", B9, 0)
+
+
+c <- 1
+k <- 1
+m <- 6
+
+picea <- picea %>%
+  mutate(HCB1 = final.ht / (1 + c * exp(-k * X))^(1/m))
+
+plot(picea$final.ht,picea$HCB1) 
+#HCB1 calculations are being predicted the same as HT.23 msmts
+#Is this because X includes HT.23, so I'm using HT.23 to calculate itself, resulting in the similarity between HCB1 and HT.23?
+#If I take out HT.23 from B1 I get values that make more sense, so why did Aaron's paper include height in the estimates? Or is something else not right?
+#Should I remove HT.23 from lme model?
+
+picea$final.HCB <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$HCB1)
+xyplot(final.HCB ~ final.ht | SPP,
+       data = picea,
+       subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+picea$resid <- picea$final.ht-picea$final.HCB
+plot(picea$final.HCB,picea$resid)
+
+view(picea)
+
+------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
 #-------------------------------------------------------------------------------
 picea.vol <- picea %>%
@@ -1050,7 +1218,6 @@ plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
 
 plot.2
 
-
 picea.4 <- picea %>%
   filter(SPP %in% c("NS", "RS", "WS", "BS"), 
          !(CODE %in% c("C", "B", "R", "N", "W")),  
@@ -1144,23 +1311,34 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)  
 
-#convert to metric 
-spruce <- picea %>%
-  mutate(
-    stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
-      CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
-      TRUE ~ NA_character_
-    ),
-    DBH.23 = DBH.23 * 2.54  
-  ) %>%
-  filter(!is.na(DBH.23) & !is.na(stand_type))
 
-ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+spruce2 <- spruce %>%
+  filter(!(CODE == "BW" & SPP == "RS"),   # Remove SPP RS in CODE BW
+         !(CODE == "NR" & SPP == "BS"),   # Remove SPP BS in CODE NR
+         !(CODE == "RW" & SPP %in% c("NS", "BS")))  # Remove SPP NS & BS in CODE RW
+
+ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
-  labs(x = "DBH (cm)", y = "Density") +  
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  labs(x = "DBH (inches)", y = "Density") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
+
+ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (in)", y = "Density") +
+  scale_x_continuous(breaks = seq(0, max(spruce2$DBH.23, na.rm = TRUE), by = 2),
+                     expand = expansion(mult = c(0.05, 0.1))) +  
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
+
+#convert to metric 
+ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (cm)", y = "Density") +  # Update axis label to cm
   theme_minimal() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
@@ -1210,24 +1388,23 @@ ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)  
 
-#convert to metric 
-spruce <- picea %>%
-  mutate(
-    stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
-      CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
-      TRUE ~ NA_character_
-    ),
-    final.vol = final.vol * 0.0283168  
-  ) %>%
-  filter(!is.na(final.vol) & !is.na(stand_type))  
+spruce2 <- spruce %>%
+  filter(!(CODE == "BW" & SPP == "RS"),   
+         !(CODE == "NR" & SPP == "BS"),  
+         !(CODE == "RW" & SPP %in% c("NS", "BS")))  
 
-ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
+ggplot(spruce2, aes(x = final.vol, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
-  labs(x = "Volume (m³)",  
-       y = "Density") +
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
+  labs(x = "Volume (ft³)", y = "Density") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
+
+#convert to metric 
+ggplot(spruce2, aes(x = final.vol * 0.0283168, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "Volume (m³)", y = "Density") +  # Update axis label to m³
   theme_minimal() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
@@ -1277,18 +1454,6 @@ ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE) 
 
-#convert to metric 
-spruce <- picea %>%
-  mutate(
-    stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "BN", "RW", "BW", "BN") ~ "Mixed",
-      CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
-      TRUE ~ NA_character_
-    ),
-    plot.vol = plot.vol * 0.069713 
-  ) %>%
-  filter(!is.na(plot.vol) & !is.na(stand_type))  
-
 ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  
   labs(x = "Volume (m³/ha)",  
@@ -1300,6 +1465,27 @@ ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)
 
+spruce2 <- spruce %>%
+  filter(!(CODE == "BW" & SPP == "RS"),   
+         !(CODE == "NR" & SPP == "BS"),  
+         !(CODE == "RW" & SPP %in% c("NS", "BS")))  
+
+ggplot(spruce2, aes(x = plot.vol, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "Volume (ft³/ac)", y = "Density") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
+
+#convert to metric 
+ggplot(spruce2, aes(x = plot.vol * 0.070, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "Volume (m³/ha)", y = "Density") +  # Update axis label to metric
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
 #-------------------------------------------------------------------------------
 # final.ht distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
 #-------------------------------------------------------------------------------
@@ -1325,7 +1511,27 @@ ggplot(spruce, aes(x = final.ht, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)
 
+spruce2 <- spruce %>%
+  filter(!(CODE == "BW" & SPP == "RS"),   
+         !(CODE == "NR" & SPP == "BS"),  
+         !(CODE == "RW" & SPP %in% c("NS", "BS")))  
 
+ggplot(spruce2, aes(x = final.ht, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "Height (ft)", y = "Density") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
+
+#convert to metric
+ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "Height (m)", y = "Density") +  # Update axis label to meters
+  theme_minimal() +
+  theme(legend.position = "top",
+        legend.title = element_blank()) +
+  facet_wrap(~ CODE)
 #-------------------------------------------------------------------------------
 # now to determine if microsite variations in soil and topographic features influence tree and stand development and lead to o
 # final.ht ~ DBH.23 +.... Wykoff Equation 
