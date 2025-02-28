@@ -784,111 +784,6 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #spp, dbh, htl
 
 #-------------------------------------------------------------------------------
-# Overyielding & Transgressive Overyielding, looking at the plot level
-#-------------------------------------------------------------------------------
-# Generate plot estimates
-plot_estimates <- picea %>%
-  mutate(qmd.2 = qmd(bapa,tpa),
-         rd.2 = bapa/sqrt(qmd.2)) %>%
-  group_by(BLOCK, PLOT, CODE) %>%  # Include CODE here for species code
-  summarise(total_vol = sum(final.vol, na.rm = TRUE),  
-            BAPA = mean(bapa),
-            TPA = mean(tpa),
-            QMD = mean(qmd.2),
-            RD = mean(rd.2),
-            .groups = 'drop')
-
-
-# calculate overyielding at plot level
-oy <- function(data) {
-  results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (i in 1:nrow(data)) {
-    mixture <- as.character(data$CODE[i])  # make CODE a character
-    
-    if (nchar(mixture) == 2) { # only calculate overyielding for mixtures
-      species1 <- substr(mixture, 1, 1)  
-      species2 <- substr(mixture, 2, 2)  
-      
-      volume1 <- data$total_vol[data$CODE == species1]
-      volume2 <- data$total_vol[data$CODE == species2]
-      
-      mixture_volume <- data$total_vol[i]
-      
-      if (length(volume1) > 0 && length(volume2) > 0) {
-        average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
-        overyielding <- mixture_volume / average_volume
-        
-        results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
-      }
-    }
-  }
-  
-  return(results)
-}
-
-oy_results <- oy(plot_estimates)
-print(oy_results)
-avg_oy <- oy_results %>%
-  group_by(Mixture) %>%
-  summarise(avg_oy = mean(Overyielding, na.rm = TRUE))
-print(avg_oy)
-library(dplyr)
-
-ggplot(avg_oy, aes(x = Mixture, y = avg_oy)) +
-  geom_bar(stat = "identity", fill = "grey") +  
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", 
-       y = NULL) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))  
-
-        
-# calculate transgressive overyielding
-calculate_transgressive_overyielding <- function(data) {
-  results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (i in 1:nrow(data)) {
-    mixture <- as.character(data$CODE[i]) 
-    
-    if (nchar(mixture) == 2) {
-      species1 <- substr(mixture, 1, 1)
-      species2 <- substr(mixture, 2, 2)
-      
-      volume1 <- data$total_vol[data$CODE == species1]  
-      volume2 <- data$total_vol[data$CODE == species2]  
-      
-      mixture_volume <- data$total_vol[i]  
-      
-      if (length(volume1) > 0 && length(volume2) > 0) {
-        max_volume <- max(volume1, volume2, na.rm = TRUE)  # maximum volume of the two monocultures
-        transgressive_overyielding <- mixture_volume / max_volume  # ratio to the larger monoculture volume
-        
-        results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
-      }
-    }
-  }
-  
-  return(results)
-}
-
-toy_results <- calculate_transgressive_overyielding(plot_estimates)
-avg_toy <- toy_results %>%
-  group_by(Mixture) %>%
-  summarise(avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE))
-print(avg_toy)
-
-ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
-  geom_bar(stat = "identity", fill = "grey") +  
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", 
-       y = NULL) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))  
-
-#-------------------------------------------------------------------------------
 # HCB Model
 #-------------------------------------------------------------------------------
 #picea10 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
@@ -970,7 +865,7 @@ B8 <- 2.4157     # factor(CODE)NW
 B9 <- -2.2884    #factor(CODE)R
 
 picea$X <- B0 + 
-  B1 * picea$HT.23 + 
+  #B1 * picea$HT.23 + 
   B2 * picea$DBH.23 + 
   
   ifelse(picea$SPP == "NS", B3, 0) + 
@@ -1004,7 +899,113 @@ xyplot(final.HCB ~ final.ht | SPP,
 picea$resid <- picea$final.ht-picea$final.HCB
 plot(picea$final.HCB,picea$resid)
 
-view(picea)
+
+
+
+-------------------------------------------------------------------------------
+  # Overyielding & Transgressive Overyielding, looking at the plot level
+  #-------------------------------------------------------------------------------
+# Generate plot estimates
+plot_estimates <- picea %>%
+  mutate(qmd.2 = qmd(bapa,tpa),
+         rd.2 = bapa/sqrt(qmd.2)) %>%
+  group_by(BLOCK, PLOT, CODE) %>%  # Include CODE here for species code
+  summarise(total_vol = sum(final.vol, na.rm = TRUE),  
+            BAPA = mean(bapa),
+            TPA = mean(tpa),
+            QMD = mean(qmd.2),
+            RD = mean(rd.2),
+            .groups = 'drop')
+
+
+# calculate overyielding at plot level
+oy <- function(data) {
+  results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
+  
+  for (i in 1:nrow(data)) {
+    mixture <- as.character(data$CODE[i])  # make CODE a character
+    
+    if (nchar(mixture) == 2) { # only calculate overyielding for mixtures
+      species1 <- substr(mixture, 1, 1)  
+      species2 <- substr(mixture, 2, 2)  
+      
+      volume1 <- data$total_vol[data$CODE == species1]
+      volume2 <- data$total_vol[data$CODE == species2]
+      
+      mixture_volume <- data$total_vol[i]
+      
+      if (length(volume1) > 0 && length(volume2) > 0) {
+        average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
+        overyielding <- mixture_volume / average_volume
+        
+        results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
+      }
+    }
+  }
+  
+  return(results)
+}
+
+oy_results <- oy(plot_estimates)
+print(oy_results)
+avg_oy <- oy_results %>%
+  group_by(Mixture) %>%
+  summarise(avg_oy = mean(Overyielding, na.rm = TRUE))
+print(avg_oy)
+library(dplyr)
+
+ggplot(avg_oy, aes(x = Mixture, y = avg_oy)) +
+  geom_bar(stat = "identity", fill = "grey") +  
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
+  labs(x = "Species Mixture", 
+       y = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = c(1))  
+
+
+# calculate transgressive overyielding
+calculate_transgressive_overyielding <- function(data) {
+  results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
+  
+  for (i in 1:nrow(data)) {
+    mixture <- as.character(data$CODE[i]) 
+    
+    if (nchar(mixture) == 2) {
+      species1 <- substr(mixture, 1, 1)
+      species2 <- substr(mixture, 2, 2)
+      
+      volume1 <- data$total_vol[data$CODE == species1]  
+      volume2 <- data$total_vol[data$CODE == species2]  
+      
+      mixture_volume <- data$total_vol[i]  
+      
+      if (length(volume1) > 0 && length(volume2) > 0) {
+        max_volume <- max(volume1, volume2, na.rm = TRUE)  # maximum volume of the two monocultures
+        transgressive_overyielding <- mixture_volume / max_volume  # ratio to the larger monoculture volume
+        
+        results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
+      }
+    }
+  }
+  
+  return(results)
+}
+
+toy_results <- calculate_transgressive_overyielding(plot_estimates)
+avg_toy <- toy_results %>%
+  group_by(Mixture) %>%
+  summarise(avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE))
+print(avg_toy)
+
+ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
+  geom_bar(stat = "identity", fill = "grey") +  
+  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
+  labs(x = "Species Mixture", 
+       y = NULL) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(breaks = c(1))  
 
 ------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
