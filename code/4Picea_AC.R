@@ -747,7 +747,7 @@ plot(mod8)
 require(DHARMa)
 
 mod9 <- zeroinfl(deductclass ~dew + qmd + rs,
-                 , data = d.set)
+                 data = d.set)
 AIC(mod8,mod9)
 summary(mod8)
 # the VSURF looks great for the zero inflateed, now for the continuous
@@ -757,14 +757,14 @@ much <- dplyr::filter(d.set,deductclass>0)
 require(leaps)
 much$deductclass <- as.integer(much$deductclass)
 plot(much$deductclass)
-dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
-                                   tri+ tpi+roughness+slope+aspect+flowdir+tmin+tmean+ 
-                                   tmax+ dew+vpdmax+vpdmin+McNab+Bolstad+Profile+Planform+
-                                   Winds10+Winds50+SWI+RAD+ppt+Parent+
-                                   dep+ex.k+nit+SWC2+MeanWD+Proportion+Min_depth+WD2000+
-                                   WD2020+WHC+ex.mg+ex.ca+ph+bapa+tpa+hd+bal+htl+ 
-                                   vicary.si+steinman.si+topht+qmd+rdi+rs+sdi,
-                                   data=much,method="exhaustive",really.big=TRUE)
+#dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
+ #                                  tri+ tpi+roughness+slope+aspect+flowdir+tmin+tmean+ 
+  #                                 tmax+ dew+vpdmax+vpdmin+McNab+Bolstad+Profile+Planform+
+   #                                Winds10+Winds50+SWI+RAD+ppt+Parent+
+    #                               dep+ex.k+nit+SWC2+MeanWD+Proportion+Min_depth+WD2000+
+     #                              WD2020+WHC+ex.mg+ex.ca+ph+bapa+tpa+hd+bal+htl+ 
+      #                             vicary.si+steinman.si+topht+qmd+rdi+rs+sdi,
+       #                            data=much,method="exhaustive",really.big=TRUE)
 
 
 require(performance)
@@ -779,7 +779,6 @@ expected.counts<-m2$fitted.values
 chisq.term<-(obs.counts-expected.counts)^2/expected.counts
 df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
                 Ek=expected.counts,ChiSqk=chisq.term)
-
 
 #spp, dbh, htl
 
@@ -805,22 +804,83 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #SPP, CODE, rdi, vicary.si (circular), bal for preds
 #SPP, HT.23, DBH.23, CODE for preds2
 # tried just leaving site vars in as only predictors but only picked up RS_Suitability
-picea.11 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-picea.11 <- dplyr::filter(picea, (SPP %in% c("WS", "NS", "RS", "BS")) & (CODE != "C")) # filter out the control (C) plots too?
 
-model <- lm(HCB.23 ~I(log(CCF)) + HT.23 + bal + factor(SPP) + factor(CODE), data = picea.11)
+# your filter below includes trees with no ht measurent, right? 
+
+#picea.11 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
+#picea.11 <- dplyr::filter(picea, (SPP %in% c("WS", "NS", "RS", "BS")) & (CODE != "C")) # filter out the control (C) plots too?
+names(spruce.bal)
+spruce.bal2 <- spruce.bal[c(1,2,3,72)]
+
+d.set <- dplyr::left_join(d.set,spruce.bal2)
+xyplot(HCB.23~HT.23|SPP,data=d.set)
+
+model <- lm(HCB.23 ~I(log(CCF)) + HT.23 + bal + factor(SPP) + factor(CODE), data = d.set)
 summary(model)
 AIC(model)
 
-residuals <- residuals(model)
-ggplot(data.frame(fitted = fitted(model), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
+
+# winning model !!! 
+model2 <- lm(HCB.23 ~HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
+summary(model2)
+
+
+
+
+
+model3 <- lme(HCB.23~HT.23+bal+factor(SPP)+factor(CODE),data=d.set,
+              random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
+AIC(model2,model3)
+
+# well. dang . 
+
+#now, for the model. 
+
+# test
+d.set$fit.X <- predict(model2,d.set)
+
+
+d.set$fit.hcb <- d.set$HT.23/
+  (((1+1*exp(-1*d.set$fit.X)))^(1/1))
+
+
+
+plot(d.set$fit.hcb,d.set$HCB.23)
+abline(0,1)
+
+xyplot(fit.hcb~HCB.23|CODE,data=d.set,type="l")
+#xyplot(fit.hcb~HT.23|CODE,data=d.set,type="l")
+
+model2 <- lm(HCB.23~HT.23+hd+log(CCF)+bal,data=d.set)
+AIC(model,model2)
+
+d.set$lin.fit <- predict(model2,d.set)
+plot(d.set$HCB.23,d.set$lin.fit)
+abline(0,1)
+
+xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
+
+
+
+plot(residuals(model2))
+
+
+d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
+plot(d.set$HCB.23,d.set$exp.fit)
+abline(0,1)
+
+
+
+
+residuals <- residuals(model2)
+ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model2)), aes(x = fitted, y = residuals)) +
   geom_point(color = "blue") +
   geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
   theme_minimal()
 
 
-rmse <- rmse(model)
+rmse <- rmse(model2)
 print(paste("RMSE:", rmse))
 
 MB <- mean(residuals)
@@ -840,6 +900,8 @@ ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x 
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
   theme_minimal()
 
+xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
+
 rmse <- rmse(model2)
 print(paste("RMSE:", rmse))
 
@@ -853,39 +915,49 @@ print(paste("Mean Absolute Bias (MAB):", MAB))
 coefficients <- coef(model2)
 print(coefficients)
 
-B0 <- 2.3448      # Intercept
-B1 <- 0.4610     # HT.23
-B2 <- -1.0785     #DBH.23  
-B3 <- -3.6287    # factor(SPP)NS
-B4 <- -2.6370    # factor(SPP)RS
-B5 <- -2.5058     # factor(CODE)BR
-B6 <- 2.0202    # factor(CODE)BW
-B7 <- 2.4756    # factor(CODE)N
-B8 <- 2.4157     # factor(CODE)NW
-B9 <- -2.2884    #factor(CODE)R
+B0 <- -0.27150984       # Intercept
+B1 <- 0.33969644     # HT.23
+B2 <- 0.02672539     #bal  
+B3 <- -4.3512    # factor(SPP)NS
+B4 <- -3.26968020  # factor(SPP)RS
+B5 <- -2.48090535     # factor(CODE)BR
+B6 <- 1.55275136    # factor(CODE)BW
+B7 <- 1.67330013    # factor(CODE)N
+B8 <- 2.02087534     # factor(CODE)NW
+B9 <- -1.57597904    #factor(CODE)R
 
-picea$X <- B0 + 
-  #B1 * picea$HT.23 + 
-  B2 * picea$DBH.23 + 
-  
-  ifelse(picea$SPP == "NS", B3, 0) + 
-  ifelse(picea$SPP == "RS", B4, 0) +
-  
-  ifelse(picea$CODE == "BR", B5, 0) +
-  ifelse(picea$CODE == "BW", B6, 0) +
-  ifelse(picea$CODE == "N", B7, 0) +
-  ifelse(picea$CODE == "NW", B8, 0) +
-  ifelse(picea$CODE == "R", B9, 0)
+d.set$X <- B0 + 
+  B1 +#* d.set$HT.23 + 
+  B2 +#* d.set$bal + 
+  ifelse(d.set$SPP == "NS", B3, 0) + 
+  ifelse(d.set$SPP == "RS", B4, 0) +
+   ifelse(d.set$CODE == "BR", B5, 0) +
+  ifelse(d.set$CODE == "BW", B6, 0) +
+  ifelse(d.set$CODE == "N", B7, 0) +
+  ifelse(d.set$CODE == "NW", B8, 0) +
+  ifelse(d.set$CODE == "R", B9, 0)
 
 
 c <- 1
 k <- 1
-m <- 6
+m <- 10
 
-picea <- picea %>%
-  mutate(HCB1 = final.ht / (1 + c * exp(-k * X))^(1/m))
+d.set <- d.set %>%
+  mutate(HCB1 = HT.23 / (1 + c * exp(-k * X))^(1/m),
+         HCB2 = HT.23*(1-1*exp(-1*d.set$X^10)))
 
-plot(picea$final.ht,picea$HCB1) 
+plot(d.set$HCB1,d.set$HCB.23)
+abline(0,1)
+
+
+
+
+
+plot(d.set$HCB.23,d.set$HCB1) 
+abline(0,1)
+
+d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
+
 #HCB1 calculations are being predicted the same as HT.23 msmts
 #Is this because X includes HT.23, so I'm using HT.23 to calculate itself, resulting in the similarity between HCB1 and HT.23?
 #If I take out HT.23 from B1 I get values that make more sense, so why did Aaron's paper include height in the estimates? Or is something else not right?
