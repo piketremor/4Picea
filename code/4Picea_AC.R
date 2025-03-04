@@ -349,16 +349,46 @@ xyplot(final.ht ~ DBH.23 | SPP,
 
 # crown ratio model using nlme/following ht.mod layout
 # could not get to run, is the issue because of the 2 species groups so the start parameters vary?
-#cr.mod <- nlme(
-  #LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
-  #data = crownratio,  
-  #fixed = b1 + b2 + b3 + b4 ~ sppgroup,
-  #random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/PLOT/SPP,  
-  #na.action = na.pass,  
-  #start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420,
-  #b1 = 5.540, b2 = 0.0072, b3 = 4.200, b4 = -0.0530), 
-  #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B")
-  #)
+cr.mod <- nlme(
+  LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
+  data = crownratio,  
+  fixed = b1 + b2 + b3 + b4 ~ 1,
+  random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/SPP,  
+  na.action = na.pass,  
+  start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420))#, 
+  #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B"))
+
+plot(crownratio$DBH.23,crownratio$HCB.23)
+xyplot(HCB.23~DBH.23|SPP,data=crownratio)
+crownratio$CL <- crownratio$HT.23-crownratio$HCB.23
+xyplot(CL~HT.23|SPP,data=crownratio,type=c("p"))
+boxplot(CL~CODE,data=crownratio)
+
+
+> m2 <- lm(LCR.23~CODE+SPP,data=crownratio)
+> summary(m2)
+
+
+m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
+> summary(m3)
+
+> m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
+
+
+
+> crownratio$fit <- predict(m3,crownratio)
+> xyplot(crownratio~HT.23|SPP,data=crownratio)
+Error in `[.data.frame`(y, id) : undefined columns selected
+> xyplot(fit~HT.23|SPP,data=crownratio)
+> xyplot(fit~HT.23|SPP,data=crownratio,type="l")
+> xyplot(fit~HT.23|SPP,data=crownratio,type="p")
+> xyplot(1-fit~HT.23|SPP,data=crownratio,type="p")
+> crownratio$crowndepth <- (crownratio$HT.23*crownratio$fit)
+> xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
+> crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
+> xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
+
+
 
 #cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = crownratio,
