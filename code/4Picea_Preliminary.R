@@ -70,3 +70,5 @@ names(ft) <- c("elevation","tri","tpi","roughness","slope","aspect",
 plot(ft)
 plot(ft$aspect)
 plot(shape,add=TRUE,col="darkred",lwd=5)
+
+

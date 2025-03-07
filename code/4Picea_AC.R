@@ -23,9 +23,9 @@ picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 site <- read.csv("4Picea_30m.csv")
 
-min(site$elevation, na.rm = TRUE)  # Minimum elevation
-mean(site$elevation, na.rm = TRUE) # Mean elevation
-max(site$elevation, na.rm = TRUE)
+#min(site$elevation, na.rm = TRUE)  # Minimum elevation
+#mean(site$elevation, na.rm = TRUE) # Mean elevation
+#max(site$elevation, na.rm = TRUE)
 #-------------------------------------------------------------------------------
 #join stemform to picea by BLOCK, PLOT, TREE #join site to picea by BLOCK, PLOT
 #-------------------------------------------------------------------------------
@@ -47,20 +47,20 @@ picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 #-------------------------------------------------------------------------------
 #calculate the proportion of each species by plot
 #-------------------------------------------------------------------------------
-species_proportions <- picea %>%
+species.prop <- picea %>%
   group_by(BLOCK, PLOT, SPP) %>%
-  summarise(Tree_Count = n(), .groups = 'drop') %>%
+  summarise(tree.ct = n(), .groups = 'drop') %>%
   group_by(BLOCK, PLOT) %>%
-  mutate(Total_Trees = sum(Tree_Count),
-         Proportion = Tree_Count / Total_Trees) %>%
+  mutate(t.trees = sum(tree.ct),
+         Proportion = tree.ct / t.trees) %>%
   select(BLOCK, PLOT, SPP, Proportion)
 
-print(species_proportions)
+print(species.prop)
 
 picea <- picea %>%
-  left_join(species_proportions, by = c("BLOCK", "PLOT", "SPP"))
+  left_join(species.prop, by = c("BLOCK", "PLOT", "SPP"))
 
-ggplot(species_proportions, aes(x = factor(PLOT), y = Proportion, fill = SPP)) +
+ggplot(species.prop, aes(x = factor(PLOT), y = Proportion, fill = SPP)) +
   geom_bar(stat = "identity", position = "stack") +
   facet_wrap(~ BLOCK, scales = "free_x") +
   labs(x = "Plot", y = "Proportion") +
@@ -72,7 +72,7 @@ ggplot(species_proportions, aes(x = factor(PLOT), y = Proportion, fill = SPP)) +
 #-------------------------------------------------------------------------------
 picea$tree.factor <- 10
 
-bapa_tpa_summary <- picea %>%
+bapa.tpa.summary <- picea %>%
   filter(STATUS.23 == "1") %>%
   mutate(tree.ba = DBH.23^2 * 0.005454) %>%
   group_by(BLOCK, PLOT, uid, CODE) %>%
@@ -82,7 +82,7 @@ bapa_tpa_summary <- picea %>%
   )
 
 picea <- picea %>%
-  left_join(bapa_tpa_summary, by = c("uid", "CODE", "BLOCK", "PLOT"))
+  left_join(bapa.tpa.summary, by = c("uid", "CODE", "BLOCK", "PLOT"))
 
 plot(picea$bapa, picea$tpa)  # most plots are between 20 and 140 bapa
 
@@ -128,7 +128,7 @@ xyplot(bapa~Proportion|CODE,data=picea)
 #-------------------------------------------------------------------------------
 picea$dbh.class <- 2*as.integer((picea$DBH.23+(2/2))/2)
 
-picea_distribution <- picea %>%
+picea.dist <- picea %>%
   filter(STATUS.23 == "1") %>%
   mutate(DiameterClass = cut(DBH.23, 
                              breaks = seq(0, 15, by = 1), 
@@ -137,7 +137,7 @@ picea_distribution <- picea %>%
   summarise(Count = n(), 
             .groups = 'drop')
 
-ggplot(picea_distribution, aes(x = dbh.class, y = Count, fill = dbh.class)) +
+ggplot(picea.dist, aes(x = dbh.class, y = Count, fill = dbh.class)) +
   geom_bar(stat = "identity", show.legend = FALSE) +
   labs(title = "Diameter Class Distribution",
        x = "Diameter Classes (DBH in inches)",
@@ -149,7 +149,7 @@ ggplot(picea_distribution, aes(x = dbh.class, y = Count, fill = dbh.class)) +
 # diameter distribution by CODE
 picea$dbh.class <- 2 * as.integer((picea$DBH.23 + (2 / 2)) / 2)
 
-picea_distribution <- picea %>%
+picea.dist <- picea %>%
   filter(STATUS.23 == "1") %>%
   mutate(DiameterClass = cut(DBH.23, 
                              breaks = seq(0, max(picea$DBH.23, na.rm = TRUE), by = 2), 
@@ -158,7 +158,7 @@ picea_distribution <- picea %>%
   summarise(Count = n(), 
             .groups = 'drop')
 
-ggplot(picea_distribution, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
+ggplot(picea.dist, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
   geom_bar(stat = "identity", show.legend = FALSE) +
   facet_wrap(~ CODE) +  # Create separate plots for each CODE
   labs(x = "Diameter Class (DBH in inches)",
@@ -349,46 +349,39 @@ xyplot(final.ht ~ DBH.23 | SPP,
 
 # crown ratio model using nlme/following ht.mod layout
 # could not get to run, is the issue because of the 2 species groups so the start parameters vary?
-cr.mod <- nlme(
-  LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
-  data = crownratio,  
-  fixed = b1 + b2 + b3 + b4 ~ 1,
-  random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/SPP,  
-  na.action = na.pass,  
-  start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420))#, 
+#cr.mod <- nlme(
+  #LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
+  #data = crownratio,  
+  #fixed = b1 + b2 + b3 + b4 ~ 1,
+  #random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/SPP,  
+  ##start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420))#, 
   #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B"))
 
-plot(crownratio$DBH.23,crownratio$HCB.23)
-xyplot(HCB.23~DBH.23|SPP,data=crownratio)
-crownratio$CL <- crownratio$HT.23-crownratio$HCB.23
-xyplot(CL~HT.23|SPP,data=crownratio,type=c("p"))
-boxplot(CL~CODE,data=crownratio)
+#plot(crownratio$DBH.23,crownratio$HCB.23)
+#xyplot(HCB.23~DBH.23|SPP,data=crownratio)
+#crownratio$CL <- crownratio$HT.23-crownratio$HCB.23
+#xyplot(CL~HT.23|SPP,data=crownratio,type=c("p"))
+#boxplot(CL~CODE,data=crownratio)
+
+#m2 <- lm(LCR.23~CODE+SPP,data=crownratio)
+#summary(m2)
 
 
-> m2 <- lm(LCR.23~CODE+SPP,data=crownratio)
-> summary(m2)
+#m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
+#summary(m3)
+#m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
 
-
-m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
-> summary(m3)
-
-> m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
-
-
-
-> crownratio$fit <- predict(m3,crownratio)
-> xyplot(crownratio~HT.23|SPP,data=crownratio)
-Error in `[.data.frame`(y, id) : undefined columns selected
-> xyplot(fit~HT.23|SPP,data=crownratio)
-> xyplot(fit~HT.23|SPP,data=crownratio,type="l")
-> xyplot(fit~HT.23|SPP,data=crownratio,type="p")
-> xyplot(1-fit~HT.23|SPP,data=crownratio,type="p")
-> crownratio$crowndepth <- (crownratio$HT.23*crownratio$fit)
-> xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
-> crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
-> xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
-
-
+#crownratio$fit <- predict(m3,crownratio)
+#xyplot(crownratio~HT.23|SPP,data=crownratio)
+#Error in `[.data.frame`(y, id) : undefined columns selected
+#xyplot(fit~HT.23|SPP,data=crownratio)
+#xyplot(fit~HT.23|SPP,data=crownratio,type="l")
+#xyplot(fit~HT.23|SPP,data=crownratio,type="p")
+#xyplot(1-fit~HT.23|SPP,data=crownratio,type="p")
+#crownratio$crowndepth <- (crownratio$HT.23*crownratio$fit)
+#xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
+#crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
+#xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
 
 #cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = crownratio,
@@ -612,8 +605,8 @@ p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
   xlab("Species")
 
 p.vol
-
-#-------------------------------------------------------------------------------
+  
+------------------------------------------------------------------
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
 library(randomForest)
@@ -815,7 +808,6 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #-------------------------------------------------------------------------------
 # HCB Model
 #-------------------------------------------------------------------------------
-#picea10 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
 #h.set <- picea10
 #h.set$HCB.23[is.na(h.set$HCB.23)] <- 999
 #h.set <- dplyr::filter(h.set,HCB.23<998)
@@ -845,35 +837,29 @@ spruce.bal2 <- spruce.bal[c(1,2,3,72)]
 d.set <- dplyr::left_join(d.set,spruce.bal2)
 xyplot(HCB.23~HT.23|SPP,data=d.set)
 
-model <- lm(HCB.23 ~I(log(CCF)) + HT.23 + bal + factor(SPP) + factor(CODE), data = d.set)
-summary(model)
-AIC(model)
+hcb.mod <- lm(HCB.23 ~I(log(CCF)) + final.ht + bal + factor(SPP) + factor(CODE), data = d.set)
+summary(hcb.mod)
 
+hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
+summary(hcb.mod2)
 
-# winning model !!! 
-model2 <- lm(HCB.23 ~HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
-summary(model2)
-
-
-
-
-
-model3 <- lme(HCB.23~HT.23+bal+factor(SPP)+factor(CODE),data=d.set,
+hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
               random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
-AIC(model2,model3)
+
+hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set)
+summary(hcb.mod4)
+
+AIC(hcb.mod,hcb.mod2,hcb.mod3, hcb.mod4)
 
 # well. dang . 
 
 #now, for the model. 
 
 # test
-d.set$fit.X <- predict(model2,d.set)
-
+d.set$fit.X <- predict(hcb.mod4,d.set)
 
 d.set$fit.hcb <- d.set$HT.23/
   (((1+1*exp(-1*d.set$fit.X)))^(1/1))
-
-
 
 plot(d.set$fit.hcb,d.set$HCB.23)
 abline(0,1)
@@ -890,21 +876,16 @@ abline(0,1)
 
 xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
 
-
-
 plot(residuals(model2))
-
 
 d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
 plot(d.set$HCB.23,d.set$exp.fit)
 abline(0,1)
 
 
-
-
 residuals <- residuals(model2)
 ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model2)), aes(x = fitted, y = residuals)) +
-  geom_point(color = "blue") +
+  geom_point(color = "black") +
   geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
   theme_minimal()
@@ -919,27 +900,9 @@ print(paste("Mean Bias (MB):", MB))
 MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
-model2 <- lm(HCB.23 ~ HT.23 +  DBH.23 + factor(SPP) + factor(CODE), data = picea.11) #adding CCF improves the AIC score by 1 but doesn't come up as significant 
-summary(model2)
-AIC(model2)
-
-residuals <- residuals(model2)
-ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
-  geom_point(color = "blue") +
-  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
-  theme_minimal()
 
 xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
 
-rmse <- rmse(model2)
-print(paste("RMSE:", rmse))
-
-MB <- mean(residuals)
-print(paste("Mean Bias (MB):", MB))
-
-MAB <- mean(abs(residuals))
-print(paste("Mean Absolute Bias (MAB):", MAB))
 
 # model2 is better
 coefficients <- coef(model2)
@@ -980,9 +943,6 @@ plot(d.set$HCB1,d.set$HCB.23)
 abline(0,1)
 
 
-
-
-
 plot(d.set$HCB.23,d.set$HCB1) 
 abline(0,1)
 
@@ -992,6 +952,8 @@ d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
 #Is this because X includes HT.23, so I'm using HT.23 to calculate itself, resulting in the similarity between HCB1 and HT.23?
 #If I take out HT.23 from B1 I get values that make more sense, so why did Aaron's paper include height in the estimates? Or is something else not right?
 #Should I remove HT.23 from lme model?
+picea <- picea[picea$SPP %in% c("RS", "NS", "BS", "WS"), ]
+picea$hcb.fit <- predict(hcb.mod4, picea)
 
 picea$final.HCB <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$HCB1)
 xyplot(final.HCB ~ final.ht | SPP,
@@ -1001,18 +963,90 @@ xyplot(final.HCB ~ final.ht | SPP,
 picea$resid <- picea$final.ht-picea$final.HCB
 plot(picea$final.HCB,picea$resid)
 
+# predict hcb.mod4 on all spruce, and join to picea df
+picea$hcb.fit <- ifelse(picea$SPP=="RS"|
+                                picea$SPP=="WS"|
+                                picea$SPP=="BS"|
+                                picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
+picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
+xyplot(final.hcb~final.ht|SPP,data=picea)
+
+#-------------------------------------------------------------------------------
+# Crown Space Allocation 
+#-------------------------------------------------------------------------------
+spp <- c("NS", "BS", "RS", "WS") 
+spruce.spp <- picea %>% filter(SPP %in% spp)
+
+spruce.spp <- spruce.spp %>%
+  mutate(crown.length = final.ht - final.hcb)
+
+bin <- 1  # Can change this to bins of 1, 2, 5, etc.
+max.cl <- ceiling(max(spruce.spp$crown.length, na.rm = TRUE))  # largest crown length
+bin.e <- seq(0, max.cl, by = bin)
+
+points <- function(start, end, bin.e) {
+  if (start > end) return(integer(0))  # Return empty vector if invalid
+  seq(floor(start / bin) * bin, ceiling(end / bin) * bin, by = bin)
+}
+
+# points for each record based on crown height (final.ht and final.hcb)
+spruce.spp <- spruce.spp %>%
+  rowwise() %>%
+  mutate(Bin = list(points(final.hcb, final.ht, bin.e))) %>%
+  unnest(Bin) %>%
+  ungroup()
+
+spruce.spp <- spruce.spp %>%
+  mutate(count.ac = 10)  # exp factor (example, adjust as needed)
+
+spruce.spp <- spruce.spp %>%
+  filter(!(CODE == "BN" & SPP == "WS")) %>%
+  filter(!(CODE == "BW" & SPP %in% c("RS", "NS"))) %>%
+  filter(!(CODE == "NR" & SPP == "BS")) %>%
+  filter(!(CODE == "RW" & SPP %in% c("BS", "NS"))) %>%
+  filter(!(CODE == "W" & SPP %in% c("NS"))) %>%
+  filter(CODE != "C") 
+
+# summarize frequency distribution by CODE, BLOCK, PLOT, SPP, and Bin
+freq.dist <- spruce.spp %>%
+  group_by(CODE, BLOCK, PLOT, SPP, Bin) %>%
+  summarise(count.ac = sum(count.ac), .groups = "drop")
+
+# calculate the average count per acre per CODE and SPP
+avg.freq.dist <- freq.dist %>%
+  group_by(CODE, SPP, Bin) %>%
+  summarise(count.ac = mean(count.ac), .groups = "drop")
+
+# convert Bin to relative frequency (0-1 scale)
+avg.freq.dist <- avg.freq.dist %>% 
+  mutate(relative.bin = Bin / max.cl)
+
+ggplot(avg.freq.dist, aes(x = relative.bin, y = count.ac, color = SPP, group = interaction(SPP, CODE))) +
+  geom_line(size = 1) +
+  geom_point(size = 2, alpha = 0.6) +
+  facet_wrap(~CODE, scales = "free_y") +
+  labs(x = "Crown Profile", y = "Trees per Acre",
+       color = "Species") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# pairwise t-test
+mean <- avg.freq.dist %>%
+  group_by(CODE, relative.bin) %>%
+  summarise(mean.ct = mean(count.ac), .groups = "drop")  
+
+t.results <- pairwise.t.test(mean$mean.ct, mean$CODE, p.adjust.method = "bonferroni")
+t.results
 
 
-
--------------------------------------------------------------------------------
-  # Overyielding & Transgressive Overyielding, looking at the plot level
-  #-------------------------------------------------------------------------------
-# Generate plot estimates
-plot_estimates <- picea %>%
+#-------------------------------------------------------------------------------
+# Overyielding & Transgressive Overyielding, looking at the plot level
+#-------------------------------------------------------------------------------
+plot.estimates <- picea %>%
   mutate(qmd.2 = qmd(bapa,tpa),
          rd.2 = bapa/sqrt(qmd.2)) %>%
-  group_by(BLOCK, PLOT, CODE) %>%  # Include CODE here for species code
-  summarise(total_vol = sum(final.vol, na.rm = TRUE),  
+  group_by(BLOCK, PLOT, CODE) %>%  
+  summarise(total.vol = sum(final.vol, na.rm = TRUE),  
             BAPA = mean(bapa),
             TPA = mean(tpa),
             QMD = mean(qmd.2),
@@ -1031,14 +1065,14 @@ oy <- function(data) {
       species1 <- substr(mixture, 1, 1)  
       species2 <- substr(mixture, 2, 2)  
       
-      volume1 <- data$total_vol[data$CODE == species1]
-      volume2 <- data$total_vol[data$CODE == species2]
+      volume1 <- data$total.vol[data$CODE == species1]
+      volume2 <- data$total.vol[data$CODE == species2]
       
-      mixture_volume <- data$total_vol[i]
+      mixture.volume <- data$total.vol[i]
       
       if (length(volume1) > 0 && length(volume2) > 0) {
-        average_volume <- mean(c(volume1, volume2), na.rm = TRUE)
-        overyielding <- mixture_volume / average_volume
+        average.volume <- mean(c(volume1, volume2), na.rm = TRUE)
+        overyielding <- mixture.volume / average.volume
         
         results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
       }
@@ -1048,15 +1082,14 @@ oy <- function(data) {
   return(results)
 }
 
-oy_results <- oy(plot_estimates)
-print(oy_results)
-avg_oy <- oy_results %>%
+oy.results <- oy(plot.estimates)
+print(oy.results)
+avg.oy <- oy.results %>%
   group_by(Mixture) %>%
-  summarise(avg_oy = mean(Overyielding, na.rm = TRUE))
-print(avg_oy)
-library(dplyr)
+  summarise(avg.oy = mean(Overyielding, na.rm = TRUE))
+print(avg.oy)
 
-ggplot(avg_oy, aes(x = Mixture, y = avg_oy)) +
+ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
   labs(x = "Species Mixture", 
@@ -1109,7 +1142,53 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(breaks = c(1))  
 
-------------------------------------------------------------
+#-------------------------------------------------------------------------------
+# Multiple Comparisons Test of Stand Level Metrics
+#-------------------------------------------------------------------------------
+library(multcomp)
+
+variables <- c("plot.vol", "bapa", "tpa", "topht", "qmd", "rdi", "rs")
+
+mcp <- picea[picea$CODE != "C", ]
+
+plot_list <- list()
+
+# Run ANOVA and Tukey's HSD test for each variable
+for (var in variables) {
+  # Fit the ANOVA model with CODE as the grouping variable
+  formula <- as.formula(paste(var, "~ CODE"))
+  model <- aov(formula, data = mcp)
+  
+  # Perform Tukey's HSD test
+  tukey_result <- TukeyHSD(model)
+  
+  # Extract results and prepare for ggplot
+  tukey_df <- as.data.frame(tukey_result$CODE)
+  tukey_df$SPPMix <- rownames(tukey_df)
+  colnames(tukey_df) <- c("diff", "lwr", "upr", "p_adj", "SPPMix")
+  tukey_df <- tukey_df[, c("SPPMix", "diff", "lwr", "upr", "p_adj")]
+  
+  # Create the plot for this variable
+  plot <- ggplot(tukey_df, aes(x = SPPMix, y = diff, ymin = lwr, ymax = upr)) +
+    geom_pointrange() + 
+    geom_hline(yintercept = 0, linetype = "dashed", color = "red") + 
+    theme_minimal() +
+    labs(title = paste("Tukey's HSD Test: Comparison of", var, "by CODE"),
+         x = "Treatment",
+         y = "Difference in Means (with 95% CI)") +
+    coord_flip() + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Add the plot to the list
+  plot_list[[var]] <- plot
+}
+
+# Display the plots
+for (plot in plot_list) {
+  print(plot)
+}
+
+#-------------------------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
 #-------------------------------------------------------------------------------
 picea.vol <- picea %>%
@@ -1135,28 +1214,28 @@ ggplot(picea.vol, aes(x = CODE, y = mean.vol, fill = CODE)) +
   theme(legend.position = "none")
 
 # convert to m3/hectare
-picea.vol <- picea %>%
-  filter(CODE != "C") %>% 
-  group_by(CODE) %>%
-  summarise(
-    mean.vol = mean(plot.vol, na.rm = TRUE),
-    sd.vol = sd(plot.vol, na.rm = TRUE)
-  )
+#picea.vol <- picea %>%
+  #filter(CODE != "C") %>% 
+  #group_by(CODE) %>%
+  #summarise(
+    #mean.vol = mean(plot.vol, na.rm = TRUE),
+    #sd.vol = sd(plot.vol, na.rm = TRUE)
+  #)
 
-picea.vol <- picea.vol %>%
-  mutate(
-    mean.vol = ifelse(CODE == "BR", 164.9, mean.vol),  
-    sd.vol = ifelse(CODE == "BR", 137.3, sd.vol),
-    mean.vol_m3ha = mean.vol * 0.070,  
-    sd.vol_m3ha = sd.vol * 0.070       
-  )
+#picea.vol <- picea.vol %>%
+  #mutate(
+    #mean.vol = ifelse(CODE == "BR", 164.9, mean.vol),  
+    #sd.vol = ifelse(CODE == "BR", 137.3, sd.vol),
+    #mean.vol_m3ha = mean.vol * 0.070,  
+    #sd.vol_m3ha = sd.vol * 0.070       
+  #)
 
-ggplot(picea.vol, aes(x = CODE, y = mean.vol_m3ha, fill = CODE)) +
-  geom_bar(stat = "identity") +
-  geom_errorbar(aes(ymin = mean.vol_m3ha - sd.vol_m3ha, ymax = mean.vol_m3ha + sd.vol_m3ha), width = 0.2) + 
-  labs(x = "Species Mixture", y = "Volume (m³/ha)") +
-  theme_minimal() +
-  theme(legend.position = "none")
+#ggplot(picea.vol, aes(x = CODE, y = mean.vol_m3ha, fill = CODE)) +
+  #geom_bar(stat = "identity") +
+  #geom_errorbar(aes(ymin = mean.vol_m3ha - sd.vol_m3ha, ymax = mean.vol_m3ha + sd.vol_m3ha), width = 0.2) + 
+  #labs(x = "Species Mixture", y = "Volume (m³/ha)") +
+  #theme_minimal() +
+  #theme(legend.position = "none")
 
 #-------------------------------------------------------------------------------
 # ht dbh graphics by each SPP in each mixture it occurs in
@@ -1206,59 +1285,59 @@ plot_ws <- ggplot(picea %>% filter(SPP == "WS", CODE %in% c("W", "BW", "NW", "RW
 plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
 
 #convert figure to metric 
-picea_converted <- picea %>%
-  mutate(
-    final.ht = final.ht * 0.3048, 
-    DBH.23 = DBH.23 * 2.54         
-  )
+#picea_converted <- picea %>%
+  #mutate(
+    #final.ht = final.ht * 0.3048, 
+    #DBH.23 = DBH.23 * 2.54         
+  #)
 
 # BS plot
-plot_bs <- ggplot(picea_converted %>% filter(SPP == "BS", CODE %in% c("B", "BR", "BW", "BN")) %>%
-                    group_by(CODE, DBH.23) %>%
-                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
-                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
-  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
-  labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
-  ggtitle("BS") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+#plot_bs <- ggplot(picea_converted %>% filter(SPP == "BS", CODE %in% c("B", "BR", "BW", "BN")) %>%
+                    #group_by(CODE, DBH.23) %>%
+                    #summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  #aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  #geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  #labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
+  #ggtitle("BS") +
+  #theme_minimal() +
+  #theme(legend.position = "bottom")
 
 # NS plot
-plot_ns <- ggplot(picea_converted %>% filter(SPP == "NS", CODE %in% c("N", "BN", "NW", "NR")) %>%
-                    group_by(CODE, DBH.23) %>%
-                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
-                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
-  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
-  labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
-  ggtitle("NS") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+#plot_ns <- ggplot(picea_converted %>% filter(SPP == "NS", CODE %in% c("N", "BN", "NW", "NR")) %>%
+                    #group_by(CODE, DBH.23) %>%
+                    #summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  #aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  #geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  #labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
+  #ggtitle("NS") +
+  #theme_minimal() +
+  #theme(legend.position = "bottom")
 
 # RS plot
-plot_rs <- ggplot(picea_converted %>% filter(SPP == "RS", CODE %in% c("R", "BR", "RW", "NR")) %>%
-                    group_by(CODE, DBH.23) %>%
-                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
-                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
-  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
-  labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
-  ggtitle("RS") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+#plot_rs <- ggplot(picea_converted %>% filter(SPP == "RS", CODE %in% c("R", "BR", "RW", "NR")) %>%
+                    #group_by(CODE, DBH.23) %>%
+                    #summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  #aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  #geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  #labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
+  #ggtitle("RS") +
+  #theme_minimal() +
+  #theme(legend.position = "bottom")
 
 
 # WS plot
-plot_ws <- ggplot(picea_converted %>% filter(SPP == "WS", CODE %in% c("W", "BW", "NW", "RW")) %>%
-                    group_by(CODE, DBH.23) %>%
-                    summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
-                  aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
-  geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
-  labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
-  ggtitle("WS") +
-  theme_minimal() +
-  theme(legend.position = "bottom")
+#plot_ws <- ggplot(picea_converted %>% filter(SPP == "WS", CODE %in% c("W", "BW", "NW", "RW")) %>%
+                    #group_by(CODE, DBH.23) %>%
+                    #summarise(avg_final.ht = mean(final.ht, na.rm = TRUE)), 
+                  #aes(x = DBH.23, y = avg_final.ht, color = CODE)) +
+  #geom_smooth(method = "loess", aes(group = CODE), se = FALSE, linetype = "solid") +
+  #labs(x = "DBH (cm)", y = "Height (m)", color = "Species Mixture") +  
+  #ggtitle("WS") +
+  #theme_minimal() +
+  #theme(legend.position = "bottom")
 
 # Combine the plots
-plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
+#plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
 
 
 #-------------------------------------------------------------------------------
@@ -1281,32 +1360,32 @@ plot.1 <- ggplot(picea.3, aes(x = DBH.23, y = avg.final.ht, color = SPP)) +
 plot.1
 
 #convert to metric 
-picea.3 <- picea %>%
-  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
-         CODE != "C",
-         !(CODE == "NR" & SPP == "BS")) %>%  
-  mutate(
-    final.ht = final.ht * 0.3048,  
-    DBH.23 = DBH.23 * 2.54         
-  ) %>%
-  group_by(SPP, CODE, DBH.23) %>%
-  summarise(avg.final.ht = mean(final.ht, na.rm = TRUE), .groups = "drop")
+#picea.3 <- picea %>%
+  #filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         #CODE != "C",
+         #!(CODE == "NR" & SPP == "BS")) %>%  
+  #mutate(
+    #final.ht = final.ht * 0.3048,  
+    #DBH.23 = DBH.23 * 2.54         
+  #) %>%
+  #group_by(SPP, CODE, DBH.23) %>%
+  #summarise(avg.final.ht = mean(final.ht, na.rm = TRUE), .groups = "drop")
 
-plot.2 <- ggplot(picea.3, aes(x = DBH.23, y = avg.final.ht, color = SPP)) +
-  geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
-  labs(x = "DBH (cm)", y = "Height (m)", color = "Species") +  # Update axis labels
-  theme_minimal() +
-  theme(legend.position = "bottom") +
-  facet_wrap(~CODE, ncol = 2)
+#plot.2 <- ggplot(picea.3, aes(x = DBH.23, y = avg.final.ht, color = SPP)) +
+  #geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
+  #labs(x = "DBH (cm)", y = "Height (m)", color = "Species") +  # Update axis labels
+  #theme_minimal() +
+  #theme(legend.position = "bottom") +
+  #facet_wrap(~CODE, ncol = 2)
 
-plot.2
+#plot.2
 
 #-------------------------------------------------------------------------------
 # proportion bapa by the proportion of species in each mixture 
 #-------------------------------------------------------------------------------
 picea.4 <- picea %>%
   filter(SPP %in% c("NS", "RS", "WS", "BS"), 
-         !(CODE %in% c("C", "B", "R", "N", "W")),  # Proper exclusion
+         !(CODE %in% c("C", "B", "R", "N", "W")),  
          !(CODE == "NR" & SPP == "BS")) %>%  
   group_by(SPP, CODE, Proportion) %>%
   summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop")
@@ -1338,39 +1417,39 @@ plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
 plot.2
 
 #convert to metric
-picea.4 <- picea %>%
-  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
-         !(CODE %in% c("C", "B", "R", "N", "W")),  
-         !(CODE == "NR" & SPP == "BS")) %>%  
-  group_by(SPP, CODE, Proportion) %>%
-  summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop") %>%
-  mutate(avg.bapa = avg.bapa * 2.47105)  
+#picea.4 <- picea %>%
+  #filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         #!(CODE %in% c("C", "B", "R", "N", "W")),  
+         #!(CODE == "NR" & SPP == "BS")) %>%  
+  #group_by(SPP, CODE, Proportion) %>%
+  #summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop") %>%
+  #mutate(avg.bapa = avg.bapa * 2.47105)  
 
-plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
-  geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
-  labs(x = "Proportion", y = "BAPH", color = "Species") +  
-  theme_minimal() +
-  theme(legend.position = "bottom") +
-  facet_wrap(~CODE, ncol = 2)  
+#plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
+  #geom_smooth(method = "loess", aes(group = SPP), se = FALSE, linetype = "solid") +
+  #labs(x = "Proportion", y = "BAPH", color = "Species") +  
+  #theme_minimal() +
+  #theme(legend.position = "bottom") +
+  #facet_wrap(~CODE, ncol = 2)  
 
-plot.2
+#plot.2
 
-picea.4 <- picea %>%
-  filter(SPP %in% c("NS", "RS", "WS", "BS"), 
-         !(CODE %in% c("C", "B", "R", "N", "W")),  
-         !(CODE == "NR" & SPP == "BS")) %>%  
-  group_by(SPP, CODE, Proportion) %>%
-  summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop") %>%
-  mutate(avg.bapa = avg.bapa * 2.47105)  
+#picea.4 <- picea %>%
+  #filter(SPP %in% c("NS", "RS", "WS", "BS"), 
+         #!(CODE %in% c("C", "B", "R", "N", "W")),  
+         #!(CODE == "NR" & SPP == "BS")) %>%  
+  #group_by(SPP, CODE, Proportion) %>%
+  #summarise(avg.bapa = mean(bapa, na.rm = TRUE), .groups = "drop") %>%
+  #mutate(avg.bapa = avg.bapa * 2.47105)  
 
-plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
-  geom_point(alpha = 0.7, size = 2) +
-  labs(x = "Proportion", y = "BAPH", color = "Species") + 
-  theme_minimal() +
-  theme(legend.position = "bottom") +
-  facet_wrap(~CODE, ncol = 2)  
+#plot.2 <- ggplot(picea.4, aes(x = Proportion, y = avg.bapa, color = SPP)) +
+  #geom_point(alpha = 0.7, size = 2) +
+  #labs(x = "Proportion", y = "BAPH", color = "Species") + 
+  #theme_minimal() +
+  #theme(legend.position = "bottom") +
+  #facet_wrap(~CODE, ncol = 2)  
 
-plot.2
+#plot.2
 
 
 #-------------------------------------------------------------------------------
@@ -1439,13 +1518,13 @@ ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   facet_wrap(~ CODE)
 
 #convert to metric 
-ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "DBH (cm)", y = "Density") +  # Update axis label to cm
-  theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
+#ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
+  #geom_density(alpha = 0.5) +  
+  #labs(x = "DBH (cm)", y = "Density") +  # Update axis label to cm
+  #theme_minimal() +
+  #theme(legend.position = "top",
+        #legend.title = element_blank()) +
+  #facet_wrap(~ CODE)
 
 #-------------------------------------------------------------------------------
 # tree-level final.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
@@ -1505,13 +1584,13 @@ ggplot(spruce2, aes(x = final.vol, fill = SPP, color = SPP)) +
   facet_wrap(~ CODE)
 
 #convert to metric 
-ggplot(spruce2, aes(x = final.vol * 0.0283168, fill = SPP, color = SPP)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "Volume (m³)", y = "Density") +  # Update axis label to m³
-  theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
+#ggplot(spruce2, aes(x = final.vol * 0.0283168, fill = SPP, color = SPP)) +
+  #geom_density(alpha = 0.5) +  
+  #labs(x = "Volume (m³)", y = "Density") +  # Update axis label to m³
+  #theme_minimal() +
+  #theme(legend.position = "top",
+        #legend.title = element_blank()) +
+  #facet_wrap(~ CODE)
 
 #-------------------------------------------------------------------------------
 # plot.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
@@ -1582,13 +1661,13 @@ ggplot(spruce2, aes(x = plot.vol, fill = SPP, color = SPP)) +
   facet_wrap(~ CODE)
 
 #convert to metric 
-ggplot(spruce2, aes(x = plot.vol * 0.070, fill = SPP, color = SPP)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "Volume (m³/ha)", y = "Density") +  # Update axis label to metric
-  theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
+#ggplot(spruce2, aes(x = plot.vol * 0.070, fill = SPP, color = SPP)) +
+  #geom_density(alpha = 0.5) +  
+  #labs(x = "Volume (m³/ha)", y = "Density") +  # Update axis label to metric
+  #theme_minimal() +
+  #theme(legend.position = "top",
+        #legend.title = element_blank()) +
+  #facet_wrap(~ CODE)
 #-------------------------------------------------------------------------------
 # final.ht distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
 #-------------------------------------------------------------------------------
@@ -1599,7 +1678,7 @@ spruce <- picea %>%
       CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
       TRUE ~ NA_character_
     ),
-    final.ht = final.ht * 0.3048     
+    final.ht = final.ht     
   ) %>%
   filter(!is.na(plot.vol) & !is.na(final.ht) & !is.na(stand_type))  
 
@@ -1628,13 +1707,131 @@ ggplot(spruce2, aes(x = final.ht, fill = SPP, color = SPP)) +
   facet_wrap(~ CODE)
 
 #convert to metric
-ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "Height (m)", y = "Density") +  # Update axis label to meters
+#ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
+  #geom_density(alpha = 0.5) +  
+  #labs(x = "Height (m)", y = "Density") +  # Update axis label to meters
+  #theme_minimal() +
+  #theme(legend.position = "top",
+        #legend.title = element_blank()) +
+  #facet_wrap(~ CODE)
+
+#-------------------------------------------------------------------------------
+# fitting Weibull dsitrubution to DBH.23 distrubutions
+#-------------------------------------------------------------------------------
+library(fitdistrplus)
+#another package created to fit weibull to diameters in ForestFit
+library(purrr)
+
+spruce2 <- spruce %>%
+  filter(!((CODE == "BW" & SPP == "RS") | 
+             (CODE == "NR" & SPP == "BS") | 
+             (CODE == "RW" & SPP %in% c("NS", "BS"))) & 
+           !is.na(DBH.23) & !is.nan(DBH.23))
+
+fitted.mods <- spruce2 %>%
+  split(~ CODE + SPP) %>%
+  map(~ tryCatch(fitdist(.x$DBH.23, "weibull"), error = function(e) NULL)) %>%
+  keep(~ !is.null(.)) 
+
+fitted.mods
+
+
+# Test between SPP in CODE or across CODE
+SPP1 <- spruce2 %>% filter(CODE == "RW" & SPP == "RS") %>% pull(DBH.23)
+SPP2 <- spruce2 %>% filter(CODE == "RW" & SPP == "WS") %>% pull(DBH.23)
+
+# fit weibull distributions
+fit1 <- tryCatch(fitdist(SPP1, "weibull"), error = function(e) NULL)
+fit2 <- tryCatch(fitdist(SPP2, "weibull"), error = function(e) NULL)
+
+fit1
+fit2
+
+#likelihood Rratio test 
+lrt <- 2 * (logLik(fit1) - logLik(fit2))
+p_value <- 1 - pchisq(lrt, df = 1)  # degrees of freedom = 1
+lrt_statistic
+p_value
+
+ggplot() +
+  geom_histogram(aes(x = SPP1, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "blue") +
+  stat_function(fun = dweibull, args = list(shape = fit1$estimate[1], scale = fit1$estimate[2]), color = "blue") +
+  geom_histogram(aes(x = SPP2, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "red") +
+  stat_function(fun = dweibull, args = list(shape = fit2$estimate[1], scale = fit2$estimate[2]), color = "red") +
   theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
+  labs(title = "Fitted Weibull Distributions",
+       x = "DBH.23", y = "Density")
+
+
+#CODES with significant differences amongst SPP DBH.23 distributions
+#BN p-value 0
+#BR p-value 1
+#BW not working WS = null
+#NR p-value 1
+#NW p-value 1
+#RW p-value 0
+
+
+#Amongst SPP in TRMT
+#BS in B, BN, BR, BW
+#BS in B and BN p-value=1
+#BS in B and BR p-value=1
+#BS in B and BW p-value=1
+
+#NS in N, BN, NR, NW
+#NS in N and BN p-value=1
+#NS in N and NR p-value=1
+#NS in N and NW p-value=1
+
+#RS in R, BR, NR, RW
+#RS in R and BR p-value=0.0003
+#RS in R and NR p-value=1
+#RS in R and RW p-value=1
+
+#WS in W, BW, NW, RW
+#WS in W and BRW p-value=1
+#WS in W and NW p-value=1
+#WS in W and RW p-value=1
+
+
+
+
+
+#-------------------------------------------------------------------------------
+# fitting Weibull distribution to final.ht distributions
+#-------------------------------------------------------------------------------
+SPP1 <- spruce2 %>% filter(CODE == "RW" & SPP == "RS") %>% pull(final.ht)
+SPP2 <- spruce2 %>% filter(CODE == "RW" & SPP == "WS") %>% pull(final.ht)
+
+# Fit Weibull distributions for both species
+fit1 <- fit_weibull(data = data.frame(final.ht = SPP1), var = "final.ht")
+fit2 <- fit_weibull(data = data.frame(final.ht = SPP2), var = "final.ht")
+
+fit1
+fit2
+
+# Perform Likelihood Ratio Test (LRT)
+lrt_statistic <- 2 * (logLik(fit1) - logLik(fit2))
+p_value <- 1 - pchisq(lrt_statistic, df = 1)  # degrees of freedom = 1
+lrt_statistic
+p_value
+
+ggplot() +
+  geom_histogram(aes(x = SPP1, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "blue") +
+  stat_function(fun = dweibull, args = list(shape = fit1$estimate[1], scale = fit1$estimate[2]), color = "blue") +
+  geom_histogram(aes(x = SPP2, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "red") +
+  stat_function(fun = dweibull, args = list(shape = fit2$estimate[1], scale = fit2$estimate[2]), color = "red") +
+  theme_minimal() +
+  labs(title = "Comparison of Fitted Weibull Distributions",
+       x = "Height (ft)", y = "Density")
+
+#CODES with significant differences amongst SPP DBH.23 distributions
+#BN p-value 0
+#BR p-value 1
+#BW p-value 0
+#NR p-value 1
+#NW p-value 1
+#RW p-value 0
 #-------------------------------------------------------------------------------
 # now to determine if microsite variations in soil and topographic features influence tree and stand development and lead to o
 # final.ht ~ DBH.23 +.... Wykoff Equation 
