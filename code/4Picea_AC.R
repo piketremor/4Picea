@@ -367,7 +367,6 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #summary(m2)
 
 
-<<<<<<< HEAD
 #m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
 #summary(m3)
 #m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
@@ -384,8 +383,7 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
 #xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
 
-=======
->>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
+
 #cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = crownratio,
                 #fixed = a + b ~ 1,
@@ -846,9 +844,9 @@ summary(hcb.mod)
 hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
 summary(hcb.mod2)
 
-<<<<<<< HEAD
+
 hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
-=======
+
 # winning model !!! 
 model2 <- lm(HCB.23 ~I(log(CCF))+HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
 summary(model2)
@@ -858,7 +856,7 @@ summary(model2)
 
 
 model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
->>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
+
               random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
 
 hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set)
@@ -891,16 +889,12 @@ abline(0,1)
 
 xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
 
-<<<<<<< HEAD
 plot(residuals(model2))
 
 d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
 plot(d.set$HCB.23,d.set$exp.fit)
 abline(0,1)
 
-
-=======
->>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 residuals <- residuals(model2)
 ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model2)), aes(x = fitted, y = residuals)) +
   geom_point(color = "black") +
@@ -918,8 +912,7 @@ print(paste("Mean Bias (MB):", MB))
 MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
-<<<<<<< HEAD
-=======
+
 #model2 <- lm(HCB.23 ~ HT.23 +  DBH.23 + factor(SPP) + factor(CODE), data = picea.11) #adding CCF improves the AIC score by 1 but doesn't come up as significant 
 summary(model2)
 AIC(model2)
@@ -930,7 +923,6 @@ ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x 
   geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
   theme_minimal()
->>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 
 xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
 
@@ -975,8 +967,6 @@ abline(0,1)
 <<<<<<< HEAD
 
 
-=======
->>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 plot(d.set$HCB.23,d.set$HCB1) 
 abline(0,1)
 d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
@@ -1053,73 +1043,6 @@ picea$hcb.fit <- ifelse(picea$SPP=="RS"|
                                 picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
 picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 xyplot(final.hcb~final.ht|SPP,data=picea)
-
-#-------------------------------------------------------------------------------
-# Crown Space Allocation 
-#-------------------------------------------------------------------------------
-spp <- c("NS", "BS", "RS", "WS") 
-spruce.spp <- picea %>% filter(SPP %in% spp)
-
-spruce.spp <- spruce.spp %>%
-  mutate(crown.length = final.ht - final.hcb)
-
-bin <- 1  # Can change this to bins of 1, 2, 5, etc.
-max.cl <- ceiling(max(spruce.spp$crown.length, na.rm = TRUE))  # largest crown length
-bin.e <- seq(0, max.cl, by = bin)
-
-points <- function(start, end, bin.e) {
-  if (start > end) return(integer(0))  # Return empty vector if invalid
-  seq(floor(start / bin) * bin, ceiling(end / bin) * bin, by = bin)
-}
-
-# points for each record based on crown height (final.ht and final.hcb)
-spruce.spp <- spruce.spp %>%
-  rowwise() %>%
-  mutate(Bin = list(points(final.hcb, final.ht, bin.e))) %>%
-  unnest(Bin) %>%
-  ungroup()
-
-spruce.spp <- spruce.spp %>%
-  mutate(count.ac = 10)  # exp factor (example, adjust as needed)
-
-spruce.spp <- spruce.spp %>%
-  filter(!(CODE == "BN" & SPP == "WS")) %>%
-  filter(!(CODE == "BW" & SPP %in% c("RS", "NS"))) %>%
-  filter(!(CODE == "NR" & SPP == "BS")) %>%
-  filter(!(CODE == "RW" & SPP %in% c("BS", "NS"))) %>%
-  filter(!(CODE == "W" & SPP %in% c("NS"))) %>%
-  filter(CODE != "C") 
-
-# summarize frequency distribution by CODE, BLOCK, PLOT, SPP, and Bin
-freq.dist <- spruce.spp %>%
-  group_by(CODE, BLOCK, PLOT, SPP, Bin) %>%
-  summarise(count.ac = sum(count.ac), .groups = "drop")
-
-# calculate the average count per acre per CODE and SPP
-avg.freq.dist <- freq.dist %>%
-  group_by(CODE, SPP, Bin) %>%
-  summarise(count.ac = mean(count.ac), .groups = "drop")
-
-# convert Bin to relative frequency (0-1 scale)
-avg.freq.dist <- avg.freq.dist %>% 
-  mutate(relative.bin = Bin / max.cl)
-
-ggplot(avg.freq.dist, aes(x = relative.bin, y = count.ac, color = SPP, group = interaction(SPP, CODE))) +
-  geom_line(size = 1) +
-  geom_point(size = 2, alpha = 0.6) +
-  facet_wrap(~CODE, scales = "free_y") +
-  labs(x = "Crown Profile", y = "Trees per Acre",
-       color = "Species") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-
-# pairwise t-test
-mean <- avg.freq.dist %>%
-  group_by(CODE, relative.bin) %>%
-  summarise(mean.ct = mean(count.ac), .groups = "drop")  
-
-t.results <- pairwise.t.test(mean$mean.ct, mean$CODE, p.adjust.method = "bonferroni")
-t.results
 
 
 #-------------------------------------------------------------------------------
