@@ -367,6 +367,7 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #summary(m2)
 
 
+<<<<<<< HEAD
 #m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
 #summary(m3)
 #m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
@@ -383,6 +384,8 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
 #xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
 
+=======
+>>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 #cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = crownratio,
                 #fixed = a + b ~ 1,
@@ -711,9 +714,9 @@ print(p.vol.code)
 plot(d.set$wsi,d.set$LAI)
 obs.d <- d.set$LAI
 preds.d <- d.set[c(12,21:46,51:55,57:61,65,66,71,76:79)]
-fun <- VSURF(preds.d,obs.d)
+#fun <- VSURF(preds.d,obs.d)
 
-fun$varselect.pred
+#fun$varselect.pred
 names(preds.d)
 
 # covariates with LAI - CODE, tri, roughness, qmd, rdi, and nit
@@ -843,7 +846,19 @@ summary(hcb.mod)
 hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
 summary(hcb.mod2)
 
+<<<<<<< HEAD
 hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
+=======
+# winning model !!! 
+model2 <- lm(HCB.23 ~I(log(CCF))+HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
+summary(model2)
+
+
+
+
+
+model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
+>>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
               random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
 
 hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set)
@@ -851,7 +866,7 @@ summary(hcb.mod4)
 
 AIC(hcb.mod,hcb.mod2,hcb.mod3, hcb.mod4)
 
-# well. dang . 
+# well. dang . # well. dang . plotPoints()
 
 #now, for the model. 
 
@@ -859,7 +874,7 @@ AIC(hcb.mod,hcb.mod2,hcb.mod3, hcb.mod4)
 d.set$fit.X <- predict(hcb.mod4,d.set)
 
 d.set$fit.hcb <- d.set$HT.23/
-  (((1+1*exp(-1*d.set$fit.X)))^(1/1))
+  (((1+1*exp(-1*d.set$fit.X)))^(1/6))
 
 plot(d.set$fit.hcb,d.set$HCB.23)
 abline(0,1)
@@ -867,7 +882,7 @@ abline(0,1)
 xyplot(fit.hcb~HCB.23|CODE,data=d.set,type="l")
 #xyplot(fit.hcb~HT.23|CODE,data=d.set,type="l")
 
-model2 <- lm(HCB.23~HT.23+hd+log(CCF)+bal,data=d.set)
+#model2 <- lm(HCB.23~HT.23+hd+log(CCF)+bal,data=d.set)
 AIC(model,model2)
 
 d.set$lin.fit <- predict(model2,d.set)
@@ -876,6 +891,7 @@ abline(0,1)
 
 xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
 
+<<<<<<< HEAD
 plot(residuals(model2))
 
 d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
@@ -883,6 +899,8 @@ plot(d.set$HCB.23,d.set$exp.fit)
 abline(0,1)
 
 
+=======
+>>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 residuals <- residuals(model2)
 ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model2)), aes(x = fitted, y = residuals)) +
   geom_point(color = "black") +
@@ -900,6 +918,19 @@ print(paste("Mean Bias (MB):", MB))
 MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
+<<<<<<< HEAD
+=======
+#model2 <- lm(HCB.23 ~ HT.23 +  DBH.23 + factor(SPP) + factor(CODE), data = picea.11) #adding CCF improves the AIC score by 1 but doesn't come up as significant 
+summary(model2)
+AIC(model2)
+
+residuals <- residuals(model2)
+ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
+  geom_point(color = "blue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
+  theme_minimal()
+>>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 
 xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
 
@@ -941,11 +972,13 @@ d.set <- d.set %>%
 
 plot(d.set$HCB1,d.set$HCB.23)
 abline(0,1)
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> 23ec78f391553f6ccc4b17443b232b7d891528eb
 plot(d.set$HCB.23,d.set$HCB1) 
 abline(0,1)
-
 d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
 
 #HCB1 calculations are being predicted the same as HT.23 msmts
@@ -955,6 +988,56 @@ d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
 picea <- picea[picea$SPP %in% c("RS", "NS", "BS", "WS"), ]
 picea$hcb.fit <- predict(hcb.mod4, picea)
 
+picea$fit.hcb <- predict(model2,picea)
+spruce.only <- dplyr::filter(picea,SPP=="RS"|SPP=="NS"|SPP=="WS"|SPP=="BS")
+spruce.only$HT.23 <- ifelse(is.na(spruce.only$HT.23),spruce.only$final.ht,spruce.only$HT.23)
+spruce.only$fit.hcb <- predict(model2,spruce.only)
+spruce.only$fit.hcb <- ifelse(spruce.only$fit.hcb<0.3,0.3,spruce.only$fit.hcb)
+
+cpi.frame <- spruce.only%>%
+  group_by(BLOCK,PLOT)%>%
+  summarize(Top = max(HT.23),
+            Low = min(fit.hcb))
+cpi.frame <- as.data.frame(cpi.frame)
+
+cpi.frame$uid.b <- paste0(cpi.frame$BLOCK,".",cpi.frame$PLOT)
+nd <- data.frame(uid.b = rep(c(cpi.frame$uid.b),each=100),
+                 prop = seq(from=0,to=1,length=100))
+nd2 <- left_join(nd,cpi.frame)
+head(nd2)
+
+names(spruce.only)
+al <- spruce.only[c(1:8,12,66,70,90)]
+head(al)
+pa <- left_join(nd2,al)
+head(pa)
+pa$top.prop <- pa$final.ht/pa$Top
+pa$bot.prop <- pa$fit.hcb/pa$Top
+pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
+head(pa)
+xyplot(crown.point~DBH.23|SPP,data=pa)
+#pa$prop <- as.integer(pa$prop)
+cr.demog <- pa%>%
+  mutate(ef = 10)%>%
+  group_by(BLOCK,PLOT,SPP,CODE,prop)%>%
+  summarize(cr.points = sum((crown.point)*10))
+
+COLORS = c("blue", "gold", "red", "green")
+
+
+xyplot(cr.points~prop|CODE,data=cr.demog,type=c("p","l"),
+       group=SPP,auto.key=TRUE)
+# obviously the spruce only filter doesn't work.. oh well. 
+ca <- dplyr::filter(cr.demog,cr.points>0&CODE=="RW"|CODE=="NR"|CODE=="NW"|CODE=="BR"|CODE=="BW"|CODE=="BN")
+
+xyplot(prop~cr.points|CODE,data=ca,type=c("l"),
+       group=SPP,auto.key=TRUE)
+
+write.csv(cr.demog,"Crown_point_summary.csv")
+
+
+plot_data
+spruce.only$fit.hcb <- predict(model2,spruce.only)
 picea$final.HCB <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$HCB1)
 xyplot(final.HCB ~ final.ht | SPP,
        data = picea,
