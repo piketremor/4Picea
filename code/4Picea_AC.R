@@ -832,78 +832,40 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 
 #picea.11 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
 #picea.11 <- dplyr::filter(picea, (SPP %in% c("WS", "NS", "RS", "BS")) & (CODE != "C")) # filter out the control (C) plots too?
-names(spruce.bal)
-spruce.bal2 <- spruce.bal[c(1,2,3,72)]
+#names(spruce.bal)
+#spruce.bal2 <- spruce.bal[c(1,2,3,72)]
 
 d.set <- dplyr::left_join(d.set,spruce.bal2)
 xyplot(HCB.23~HT.23|SPP,data=d.set)
 
-hcb.mod <- lm(HCB.23 ~I(log(CCF)) + final.ht + bal + factor(SPP) + factor(CODE), data = d.set)
-summary(hcb.mod)
+#hcb.mod <- lm(HCB.23 ~I(log(CCF)) + final.ht + bal + factor(SPP) + factor(CODE), data = d.set)
+#summary(hcb.mod)
 
-hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
-summary(hcb.mod2)
+#hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
+#summary(hcb.mod2)
 
+#hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
 
-hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
+#model2 <- lm(HCB.23 ~I(log(CCF))+HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
+#summary(model2)
 
-# winning model !!! 
-model2 <- lm(HCB.23 ~I(log(CCF))+HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
-summary(model2)
-
-
-
+#model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
+          #random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
 
 
-model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
-
-              random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
-
-hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set)
+hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set) #log final.ht ot DBH.23 did not improve AIC
 summary(hcb.mod4)
+AIC(hcb.mod4)
+#AIC(model2, hcb.mod4) #hcb.mod4 is better model 
 
-AIC(hcb.mod,hcb.mod2,hcb.mod3, hcb.mod4)
-
-# well. dang . # well. dang . plotPoints()
-
-#now, for the model. 
-
-# test
-d.set$fit.X <- predict(hcb.mod4,d.set)
-
-d.set$fit.hcb <- d.set$HT.23/
-  (((1+1*exp(-1*d.set$fit.X)))^(1/6))
-
-plot(d.set$fit.hcb,d.set$HCB.23)
-abline(0,1)
-
-xyplot(fit.hcb~HCB.23|CODE,data=d.set,type="l")
-#xyplot(fit.hcb~HT.23|CODE,data=d.set,type="l")
-
-#model2 <- lm(HCB.23~HT.23+hd+log(CCF)+bal,data=d.set)
-AIC(model,model2)
-
-d.set$lin.fit <- predict(model2,d.set)
-plot(d.set$HCB.23,d.set$lin.fit)
-abline(0,1)
-
-xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
-
-plot(residuals(model2))
-
-d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
-plot(d.set$HCB.23,d.set$exp.fit)
-abline(0,1)
-
-residuals <- residuals(model2)
-ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model2)), aes(x = fitted, y = residuals)) +
-  geom_point(color = "black") +
+residuals <- residuals(hcb.mod4)
+ggplot(data.frame(fitted = fitted(hcb.mod4), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
+  geom_point(color = "blue") +
   geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
   labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
   theme_minimal()
 
-
-rmse <- rmse(model2)
+rmse <- rmse(hcb.mod4)
 print(paste("RMSE:", rmse))
 
 MB <- mean(residuals)
@@ -912,76 +874,90 @@ print(paste("Mean Bias (MB):", MB))
 MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
+# predict hcb.mod4 on all spruce, and join to picea df
+picea$hcb.fit <- ifelse(picea$SPP=="RS"|
+                          picea$SPP=="WS"|
+                          picea$SPP=="BS"|
+                          picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
+picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 
-#model2 <- lm(HCB.23 ~ HT.23 +  DBH.23 + factor(SPP) + factor(CODE), data = picea.11) #adding CCF improves the AIC score by 1 but doesn't come up as significant 
-summary(model2)
-AIC(model2)
 
-residuals <- residuals(model2)
-ggplot(data.frame(fitted = fitted(model2), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
-  geom_point(color = "blue") +
-  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
-  theme_minimal()
+#now, for the model. 
 
-xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
+# test
+#d.set$fit.X <- predict(hcb.mod4,d.set)
+
+#d.set$fit.hcb <- d.set$HT.23/
+  #(((1+1*exp(-1*d.set$fit.X)))^(1/6))
+
+#plot(d.set$fit.hcb,d.set$HCB.23)
+#abline(0,1)
+
+#xyplot(fit.hcb~HCB.23|CODE,data=d.set,type="l")
+#xyplot(fit.hcb~HT.23|CODE,data=d.set,type="l")
+
+#d.set$lin.fit <- predict(model2,d.set)
+#plot(d.set$HCB.23,d.set$lin.fit)
+#abline(0,1)
+
+#xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
+
+#plot(residuals(model2))
+
+#d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
+#plot(d.set$HCB.23,d.set$exp.fit)
+#abline(0,1)
+
+
+#xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
 
 
 # model2 is better
-coefficients <- coef(model2)
-print(coefficients)
+#coefficients <- coef(model2)
+#print(coefficients)
 
-B0 <- -0.27150984       # Intercept
-B1 <- 0.33969644     # HT.23
-B2 <- 0.02672539     #bal  
-B3 <- -4.3512    # factor(SPP)NS
-B4 <- -3.26968020  # factor(SPP)RS
-B5 <- -2.48090535     # factor(CODE)BR
-B6 <- 1.55275136    # factor(CODE)BW
-B7 <- 1.67330013    # factor(CODE)N
-B8 <- 2.02087534     # factor(CODE)NW
-B9 <- -1.57597904    #factor(CODE)R
+#B0 <- -0.27150984       # Intercept
+#B1 <- 0.33969644     # HT.23
+#B2 <- 0.02672539     #bal  
+#B3 <- -4.3512    # factor(SPP)NS
+#B4 <- -3.26968020  # factor(SPP)RS
+#B5 <- -2.48090535     # factor(CODE)BR
+#B6 <- 1.55275136    # factor(CODE)BW
+#B7 <- 1.67330013    # factor(CODE)N
+#B8 <- 2.02087534     # factor(CODE)NW
+#B9 <- -1.57597904    #factor(CODE)R
 
-d.set$X <- B0 + 
-  B1 +#* d.set$HT.23 + 
-  B2 +#* d.set$bal + 
-  ifelse(d.set$SPP == "NS", B3, 0) + 
-  ifelse(d.set$SPP == "RS", B4, 0) +
-   ifelse(d.set$CODE == "BR", B5, 0) +
-  ifelse(d.set$CODE == "BW", B6, 0) +
-  ifelse(d.set$CODE == "N", B7, 0) +
-  ifelse(d.set$CODE == "NW", B8, 0) +
-  ifelse(d.set$CODE == "R", B9, 0)
-
-
-c <- 1
-k <- 1
-m <- 10
-
-d.set <- d.set %>%
-  mutate(HCB1 = HT.23 / (1 + c * exp(-k * X))^(1/m),
-         HCB2 = HT.23*(1-1*exp(-1*d.set$X^10)))
-
-plot(d.set$HCB1,d.set$HCB.23)
-abline(0,1)
-<<<<<<< HEAD
+#d.set$X <- B0 + 
+  #B1 +#* d.set$HT.23 + 
+  #B2 +#* d.set$bal + 
+  #ifelse(d.set$SPP == "NS", B3, 0) + 
+  #ifelse(d.set$SPP == "RS", B4, 0) +
+  # ifelse(d.set$CODE == "BR", B5, 0) +
+  #ifelse(d.set$CODE == "BW", B6, 0) +
+  #ifelse(d.set$CODE == "N", B7, 0) +
+  #ifelse(d.set$CODE == "NW", B8, 0) +
+  #ifelse(d.set$CODE == "R", B9, 0)
 
 
-plot(d.set$HCB.23,d.set$HCB1) 
-abline(0,1)
-d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
+#c <- 1
+#k <- 1
+#m <- 10
 
-#HCB1 calculations are being predicted the same as HT.23 msmts
-#Is this because X includes HT.23, so I'm using HT.23 to calculate itself, resulting in the similarity between HCB1 and HT.23?
-#If I take out HT.23 from B1 I get values that make more sense, so why did Aaron's paper include height in the estimates? Or is something else not right?
-#Should I remove HT.23 from lme model?
-picea <- picea[picea$SPP %in% c("RS", "NS", "BS", "WS"), ]
-picea$hcb.fit <- predict(hcb.mod4, picea)
+#d.set <- d.set %>%
+  #mutate(HCB1 = HT.23 / (1 + c * exp(-k * X))^(1/m),
+         #HCB2 = HT.23*(1-1*exp(-1*d.set$X^10)))
 
-picea$fit.hcb <- predict(model2,picea)
+#plot(d.set$HCB1,d.set$HCB.23)
+#abline(0,1)
+
+#plot(d.set$HCB.23,d.set$HCB1) 
+#abline(0,1)
+#d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
+
+picea$fit.hcb <- predict(hcb.mod4,picea)
 spruce.only <- dplyr::filter(picea,SPP=="RS"|SPP=="NS"|SPP=="WS"|SPP=="BS")
 spruce.only$HT.23 <- ifelse(is.na(spruce.only$HT.23),spruce.only$final.ht,spruce.only$HT.23)
-spruce.only$fit.hcb <- predict(model2,spruce.only)
+spruce.only$fit.hcb <- predict(hcb.mod4,spruce.only)
 spruce.only$fit.hcb <- ifelse(spruce.only$fit.hcb<0.3,0.3,spruce.only$fit.hcb)
 
 cpi.frame <- spruce.only%>%
@@ -1024,26 +1000,6 @@ xyplot(prop~cr.points|CODE,data=ca,type=c("l"),
        group=SPP,auto.key=TRUE)
 
 write.csv(cr.demog,"Crown_point_summary.csv")
-
-
-plot_data
-spruce.only$fit.hcb <- predict(model2,spruce.only)
-picea$final.HCB <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$HCB1)
-xyplot(final.HCB ~ final.ht | SPP,
-       data = picea,
-       subset = SPP %in% c("WS", "BS", "RS", "NS"))
-
-picea$resid <- picea$final.ht-picea$final.HCB
-plot(picea$final.HCB,picea$resid)
-
-# predict hcb.mod4 on all spruce, and join to picea df
-picea$hcb.fit <- ifelse(picea$SPP=="RS"|
-                                picea$SPP=="WS"|
-                                picea$SPP=="BS"|
-                                picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
-picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
-xyplot(final.hcb~final.ht|SPP,data=picea)
-
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -1133,7 +1089,7 @@ calculate_transgressive_overyielding <- function(data) {
   return(results)
 }
 
-toy_results <- calculate_transgressive_overyielding(plot_estimates)
+toy_results <- calculate_transgressive_overyielding(plot.estimates)
 avg_toy <- toy_results %>%
   group_by(Mixture) %>%
   summarise(avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE))
@@ -1150,49 +1106,34 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
 
 #-------------------------------------------------------------------------------
 # Multiple Comparisons Test of Stand Level Metrics
+# Post-hoc tukey HSD comparison for plot-level metrics
 #-------------------------------------------------------------------------------
-library(multcomp)
+library(agricolae)
+library(tibble)
 
-variables <- c("plot.vol", "bapa", "tpa", "topht", "qmd", "rdi", "rs")
+aov <- aov(tpa ~ CODE, data = mcp)
 
-mcp <- picea[picea$CODE != "C", ]
+tukey <- HSD.test(aov, "CODE", group = TRUE)
 
-plot_list <- list()
+tukey.results <- tukey$groups %>%
+  as.data.frame() %>%
+  rownames_to_column("CODE") %>%  
+  rename(mean_tpa = tpa)  
 
-# Run ANOVA and Tukey's HSD test for each variable
-for (var in variables) {
-  # Fit the ANOVA model with CODE as the grouping variable
-  formula <- as.formula(paste(var, "~ CODE"))
-  model <- aov(formula, data = mcp)
-  
-  # Perform Tukey's HSD test
-  tukey_result <- TukeyHSD(model)
-  
-  # Extract results and prepare for ggplot
-  tukey_df <- as.data.frame(tukey_result$CODE)
-  tukey_df$SPPMix <- rownames(tukey_df)
-  colnames(tukey_df) <- c("diff", "lwr", "upr", "p_adj", "SPPMix")
-  tukey_df <- tukey_df[, c("SPPMix", "diff", "lwr", "upr", "p_adj")]
-  
-  # Create the plot for this variable
-  plot <- ggplot(tukey_df, aes(x = SPPMix, y = diff, ymin = lwr, ymax = upr)) +
-    geom_pointrange() + 
-    geom_hline(yintercept = 0, linetype = "dashed", color = "red") + 
-    theme_minimal() +
-    labs(title = paste("Tukey's HSD Test: Comparison of", var, "by CODE"),
-         x = "Treatment",
-         y = "Difference in Means (with 95% CI)") +
-    coord_flip() + 
-    theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
-  # Add the plot to the list
-  plot_list[[var]] <- plot
-}
+print(tukey_results)
 
-# Display the plots
-for (plot in plot_list) {
-  print(plot)
-}
+max <- max(mcp$tpa, na.rm = TRUE)  
+
+ggplot(mcp, aes(x = CODE, y = tpa, fill = CODE)) +
+  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  
+  geom_jitter(width = 0.2, alpha = 0.4) +  
+  geom_text(data = tukey_results, aes(x = CODE, y = max * 1.05, label = groups), 
+            size = 5, fontface = "bold") +  
+  labs(title = "Post-hoc Tukey HSD Comparison",
+       y = "TPA",
+       x = "Species Mixture") +
+  theme_minimal() +
+  theme(legend.position = "none")
 
 #-------------------------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
