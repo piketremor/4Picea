@@ -1111,20 +1111,20 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
 library(agricolae)
 library(tibble)
 
-aov <- aov(tpa ~ CODE, data = mcp)
+aov <- aov(plot.vol ~ CODE, data = mcp)
 
 tukey <- HSD.test(aov, "CODE", group = TRUE)
 
 tukey.results <- tukey$groups %>%
   as.data.frame() %>%
   rownames_to_column("CODE") %>%  
-  rename(mean_tpa = tpa)  
+  rename(mean_vol = plot.vol)  
 
 print(tukey_results)
 
-max <- max(mcp$tpa, na.rm = TRUE)  
+max <- max(mcp$plot.vol, na.rm = TRUE)  
 
-ggplot(mcp, aes(x = CODE, y = tpa, fill = CODE)) +
+ggplot(mcp, aes(x = CODE, y = plot.vol, fill = CODE)) +
   geom_boxplot(outlier.shape = NA, alpha = 0.6) +  
   geom_jitter(width = 0.2, alpha = 0.4) +  
   geom_text(data = tukey_results, aes(x = CODE, y = max * 1.05, label = groups), 
@@ -1157,6 +1157,17 @@ ggplot(picea.vol, aes(x = CODE, y = mean.vol, fill = CODE)) +
   geom_bar(stat = "identity") +
   geom_errorbar(aes(ymin = mean.vol - sd.vol, ymax = mean.vol + sd.vol), width = 0.2) + 
   labs(x = "Species Mixture", y = "Average Plot Volume (ft3/ac)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+#plot.vol with post-hoc tukey HSD comparison results
+picea.vol <- left_join(picea.vol, tukey_results, by = "CODE")
+
+ggplot(picea.vol, aes(x = CODE, y = mean.vol, fill = CODE)) +
+  geom_bar(stat = "identity", color = "black") +  # Bar plot with border
+  geom_errorbar(aes(ymin = mean.vol - sd.vol, ymax = mean.vol + sd.vol), width = 0.2) +  # Error bars
+  geom_text(aes(label = groups, y = mean.vol + sd.vol * 1.8), size = 5, fontface = "bold") +  # Tukey labels above bars
+  labs(x = "Species Mixture", y = "Plot Volume (ft3/ac)") +
   theme_minimal() +
   theme(legend.position = "none")
 
@@ -1421,16 +1432,6 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   theme(legend.title = element_blank())
 
 ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
-  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  # Histogram with count on y-axis
-  labs(x = "DBH (inches)",
-       y = "Number of Trees") +
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  theme(legend.title = element_blank())
-
-ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  
   labs(x = "DBH (inches)", y = "Density") +
   scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
@@ -1445,14 +1446,6 @@ spruce2 <- spruce %>%
   filter(!(CODE == "BW" & SPP == "RS"),   # Remove SPP RS in CODE BW
          !(CODE == "NR" & SPP == "BS"),   # Remove SPP BS in CODE NR
          !(CODE == "RW" & SPP %in% c("NS", "BS")))  # Remove SPP NS & BS in CODE RW
-
-ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "DBH (inches)", y = "Density") +
-  theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
 
 ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
@@ -1490,16 +1483,6 @@ ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  # Density plot with transparency
   labs(x = "Volume (cubic feet)",
        y = "Density") +
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  theme(legend.title = element_blank())
-
-ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
-  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  # Histogram with count on y-axis
-  labs(x = "Volume (cubic feet)",
-       y = "Number of Trees") +
   scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
   scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
   theme_minimal() +
@@ -1563,16 +1546,6 @@ ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
   theme(legend.title = element_blank())
 
 ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
-  geom_histogram(aes(y = ..count..), bins = 30, alpha = 0.5, position = "identity") +  #
-  labs(x = "Plot Volume (cubic feet)",
-       y = "Number of Trees") +
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  theme(legend.title = element_blank())
-
-ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  # Density plot with transparency
   labs(x = "Plot Volume (cubic feet)",
        y = "Density") +
@@ -1583,16 +1556,6 @@ ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE) 
 
-ggplot(spruce, aes(x = plot.vol, fill = stand_type, color = stand_type)) +
-  geom_density(alpha = 0.5) +  
-  labs(x = "Volume (m³/ha)",  
-       y = "Density") +
-  scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  scale_color_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
-  theme_minimal() +
-  theme(legend.position = "top",
-        legend.title = element_blank()) +
-  facet_wrap(~ CODE)
 
 spruce2 <- spruce %>%
   filter(!(CODE == "BW" & SPP == "RS"),   
@@ -1742,8 +1705,6 @@ ggplot() +
 
 
 
-
-
 #-------------------------------------------------------------------------------
 # fitting Weibull distribution to final.ht distributions
 #-------------------------------------------------------------------------------
@@ -1779,138 +1740,6 @@ ggplot() +
 #NR p-value 1
 #NW p-value 1
 #RW p-value 0
-#-------------------------------------------------------------------------------
-# now to determine if microsite variations in soil and topographic features influence tree and stand development and lead to o
-# final.ht ~ DBH.23 +.... Wykoff Equation 
-#-------------------------------------------------------------------------------
-hist(picea$final.ht)
-picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-obs <- picea5$final.ht
-#obs[is.na(obs)] <- 0
-preds <- picea5[c(4,11,12,21:46,51:55,57:61,65,66,71,76:79)]
-#preds[is.na(preds)] <- 0
-#vs <- VSURF(preds,obs,ncores = 4)
-#vs$varselect.pred
-xyplot(final.ht~DBH.23|SPP,data=picea5)
-preds2 <- picea5[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
-#preds2[is.na(preds2)] <- 0
-#obs <- picea5$final.ht
-#obs[is.na(obs)] <- 0
-#vs <- VSURF(preds,obs)
-#vs$varselect.pred
-#names(preds2)
-
-#sdi, qmd, tpa for preds
-#rs, bal, bapa for preds2
-
-rf.frame <- ht1$coefficients$random$SPP
-rf.frame
-rf.frame <- as.data.frame(rf.frame)
-
-library(stringr)
-rf.frame2 <- rf.frame %>%
-  rownames_to_column(var = "combined_column") %>%
-  mutate(
-    split_values = str_split(combined_column, "/"),  
-    BLOCK = sapply(split_values, `[`, 1),  
-    PLOT = as.integer(sapply(split_values, `[`, 2)),  
-    SPP = sapply(split_values, `[`, 3)  
-  ) %>%
-  select(-combined_column, -split_values)  
-print(rf.frame2)
-
-picea5 <- picea5 %>%
-  left_join(rf.frame2 %>% select(BLOCK, PLOT, SPP, a, b), by = c("BLOCK", "PLOT", "SPP"))
-
-
-hist(picea5$a)
-hist(picea5$b)
-
-summary(picea5$a)
-summary(picea5$b)
-
-pairs(~ a + b + rs + bapa + bal, data = picea5)
-
-
-a1 <- lm(a ~ rs+ bal + qmd, data = picea5)
-summary(a1)
-AIC(a1)
-par(mfrow = c(2,2))
-plot(a1)
-par(mfrow = c(1,1))
-
-b1 <- lm(b ~ bal, data = picea5)
-summary(b1)
-AIC(b1)
-par(mfrow = c(2,2))
-plot(b1)
-par(mfrow = c(1,1))
-
-picea5$a.pred <- predict(a1, newdata = picea5)
-picea5$b.pred <- predict(b1, newdata = picea5)
-
-#picea5 <- na.omit(picea5)
-ht1 <- nlme(HT.23 ~ 4.5 + exp(a.pred + b.pred / (DBH.23 + 1)),
-                     data = picea5,  
-                     fixed = a.pred + b.pred ~ 1,
-                     random = a.pred + b.pred ~ 1 | BLOCK/PLOT/SPP,
-                     na.action = na.pass,
-                     start = c(a.pred = 4.5, b.pred = -6),
-                     control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-
-summary(ht1)
-AIC(ht1)
-
-picea5 <- picea5 %>%
-  mutate(
-    BLOCK = as.factor(BLOCK),
-    PLOT = as.factor(PLOT),
-    SPP = as.factor(SPP)
-  )
-# orginal ht model
-ht1 <- nlme(HT.23 ~ 4.5 + exp(a + b / (DBH.23 + 1)),
-            data = picea,
-            fixed = a + b ~ 1,
-            random = a + b ~ 1 | BLOCK/PLOT/SPP,  
-            na.action = na.pass,
-            start = c(a = 4.5, b = -6),
-            control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-
-summary(ht1)
-AIC(ht1)
-
-#-------------------------------------------------------------------------------
-#bapa ~  
-#-------------------------------------------------------------------------------
-hist(picea$bapa)
-picea6 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-obs <- picea6$bapa
-#obs[is.na(obs)] <- 0
-names(picea6)
-preds <- picea5[c(4,6,12,21:46,50:61)]
-preds2 <- picea5[c(4,6,11,12,21:46,50:61,66,70:72)] #just keep code, spp, site vars
-#preds[is.na(preds)] <- 0
-vs <- VSURF(preds,obs)
-vs$varselect.pred
-names(preds)
-
-#CODE, SPP, Winds50, Winds10, ex.ca for preds2
-
-#-------------------------------------------------------------------------------
-# look at total.vol by plot or tree level?
-#-------------------------------------------------------------------------------
-hist(picea$plot.vol)
-picea5 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-obs <- picea5$plot.vol
-#obs[is.na(obs)] <- 0
-names(picea5)
-preds <- picea5[c(4,6,11,12,21:46,50:61,66,70,71:78,79)]
-#preds[is.na(preds)] <- 0
-vs <- VSURF(preds,obs)
-vs$varselect.pred
-names(preds)
-
-#preds ex.k, rdi, CODE, qmd, tpa, roughness, LAI, SPP, Planform
 
 
 
