@@ -86,6 +86,7 @@ picea <- picea %>%
 
 plot(picea$bapa, picea$tpa)  # most plots are between 20 and 140 bapa
 
+
 ggplot(picea, aes(x = bapa, y = tpa, color = CODE)) +
   geom_point(alpha = 0.7) +  
   labs(x = "BAPA",
@@ -99,9 +100,32 @@ xyplot(bapa ~ tpa | CODE, data = picea)
 xyplot(bapa ~ tpa | CODE, data = picea, type="l")
 xyplot(bapa~Proportion|CODE,data=picea)
 
+#sums <- picea %>%
+  #group_by(CODE) %>%
+  #summarise(
+    #min = min(sdi),
+    #mean = mean(sdi),
+    #max = max(sdi),
+    #sd = sd(sdi)
+  #)
+
+#print(sums, n = nrow(sums))
+
+#sums2 <- picea %>%
+  #group_by(CODE, SPP) %>%
+  #summarise(
+    #min = min(final.hcb),
+    #mean = mean(final.hcb),
+    #max = max(final.hcb),
+    #sd = sd(final.hcb)
+  #
+
+#print(sums2, n = nrow(sums))
+#print(sums2, n = Inf)
+
 #convert to metric 
 #error because need to calculate qmd, vol first which is further down
-#picea <- picea %>%
+#picea.sum <- picea %>%
   #mutate(
     #qmdcm = qmd * 2.54,  
     #baph = bapa * 2.47105,  
@@ -109,8 +133,8 @@ xyplot(bapa~Proportion|CODE,data=picea)
    #plotvolha = plot.vol * 0.0693 
   #)
 
-#uniquedata <- picea %>%
-  #distinct(qmdcm, BLOCK, PLOT, CODE)
+#uniquedata <- picea.sum %>%
+ #distinct(bapa, BLOCK, PLOT, CODE)
 
 #print(uniquedata, n = Inf)
 
@@ -606,7 +630,17 @@ p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
   xlab("Species")
 
 p.vol
-  
+
+#calculate volume at plot level
+picea <- picea %>%
+  group_by(BLOCK, PLOT) %>%
+  mutate(stand.vol = sum(vol, na.rm = TRUE))
+
+# predict vol from LAI? roughness?
+vol <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = picea)
+summary(vol)
+AIC(vol)
+plot(vol)
 ------------------------------------------------------------------
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
@@ -853,7 +887,7 @@ xyplot(HCB.23~HT.23|SPP,data=d.set)
           #random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
 
 
-hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set) #log final.ht ot DBH.23 did not improve AIC
+hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set) #log final.ht or DBH.23 did not improve AIC
 summary(hcb.mod4)
 AIC(hcb.mod4)
 #AIC(model2, hcb.mod4) #hcb.mod4 is better model 
@@ -996,10 +1030,75 @@ xyplot(cr.points~prop|CODE,data=cr.demog,type=c("p","l"),
 # obviously the spruce only filter doesn't work.. oh well. 
 ca <- dplyr::filter(cr.demog,cr.points>0&CODE=="RW"|CODE=="NR"|CODE=="NW"|CODE=="BR"|CODE=="BW"|CODE=="BN")
 
-xyplot(prop~cr.points|CODE,data=ca,type=c("l"),
-       group=SPP,auto.key=TRUE)
+xyplot(prop~cr.points|CODE,data=ca,type=c("l"))
+
+ca <- dplyr::filter(cr.demog, cr.points > 0 & 
+                      (CODE %in% c("RW", "NR", "NW", "BR", "BW", "BN")) & 
+                      (SPP %in% c("BS", "NS", "RS", "WS")) &
+                      !((SPP %in% c("BS", "WS") & CODE == "NR") |  
+                          (SPP %in% c("RS", "WS") & CODE == "BN") |
+                          (SPP %in% c("BS", "NS") & CODE == "RW") |
+                          (SPP %in% c("RS", "NS") & CODE == "BW")))  
+ca$SPP <- factor(ca$SPP, levels = c("BS", "NS", "RS", "WS"))
+
+ca.avg <- ca %>%
+  group_by(CODE, SPP, prop) %>%
+  summarise(cr.points = mean(cr.points, na.rm = TRUE), .groups = "drop")
+
+xyplot(cr.points ~ prop | CODE, data = ca.avg, type = c("l"),
+       group = SPP, auto.key = list(points = FALSE, lines = TRUE, columns = 2))
+
+xyplot(cr.points ~ prop | CODE, 
+       data = ca.avg, 
+       type = c("l"),
+       group = SPP, 
+       auto.key = list(points = FALSE, lines = TRUE, columns = 1, title = "Species", space = "right"),
+       xlab = "Proportion", 
+       ylab = "Crown Points")
 
 write.csv(cr.demog,"Crown_point_summary.csv")
+
+
+#fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
+library(fitdistrplus)
+beta <- function(ca) {
+  ca <- ca[ca$cr.points > 0, ]
+  fit <- fitdist(ca$prop, "beta", method = "mme")
+  return(data.frame(alpha = fit$estimate["shape1"], beta = fit$estimate["shape2"]))
+}
+
+beta.fit <- ca %>%
+  group_by(CODE, SPP) %>%
+  group_modify(~ beta(.x)) %>%
+  ungroup()
+
+print(beta.fit)
+
+SPP1 <- ca %>% filter(CODE == "BR" & SPP == "BS") %>% pull(prop)
+SPP2 <- ca %>% filter(CODE == "BR" & SPP == "RS") %>% pull(prop)
+
+fit1 <- tryCatch(fitdist(SPP1, "beta", method = "mme"), error = function(e) NULL)
+fit2 <- tryCatch(fitdist(SPP2, "beta", method = "mme"), error = function(e) NULL)
+
+logLik1 <- logLik(fit1)
+logLik2 <- logLik(fit2)
+
+lrt.statistic <- 2 * (logLik1 - logLik2)
+
+# compute the p-value from the chi-squared distribution (df = 1 for comparing two distributions)
+p.value <- 1 - pchisq(lrt.statistic, df = 1)
+
+print(lrt.statistic)
+print(p.value)
+
+#CODES with significant differences amongst SPP cr.points distributions
+#BN lrt.stat 9.646666667 p-value 0.00189
+#BR lrt.stat 7.220543266 p-value 0.007207389
+#BW lrt.stat 2.5337613   p-value 0.1114343
+#NR lrt.stat 0           p-value 1
+#NW lrt.stat -16.34      p-value 1
+#RW lrt.stat -1.889348   p-value 1
+
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -1111,6 +1210,8 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
 library(agricolae)
 library(tibble)
 
+mcp<- picea %>% filter(CODE != "C")
+
 aov <- aov(plot.vol ~ CODE, data = mcp)
 
 tukey <- HSD.test(aov, "CODE", group = TRUE)
@@ -1120,14 +1221,14 @@ tukey.results <- tukey$groups %>%
   rownames_to_column("CODE") %>%  
   rename(mean_vol = plot.vol)  
 
-print(tukey_results)
+print(tukey.results)
 
 max <- max(mcp$plot.vol, na.rm = TRUE)  
 
 ggplot(mcp, aes(x = CODE, y = plot.vol, fill = CODE)) +
   geom_boxplot(outlier.shape = NA, alpha = 0.6) +  
   geom_jitter(width = 0.2, alpha = 0.4) +  
-  geom_text(data = tukey_results, aes(x = CODE, y = max * 1.05, label = groups), 
+  geom_text(data = tukey.results, aes(x = CODE, y = max * 1.05, label = groups), 
             size = 5, fontface = "bold") +  
   labs(title = "Post-hoc Tukey HSD Comparison",
        y = "TPA",
@@ -1413,15 +1514,15 @@ plot.2
 #-------------------------------------------------------------------------------
 # DBH distribution based on monculture vs. mixed Pretzsch and Biber 2016
 #-------------------------------------------------------------------------------
-spruce <- picea %>%
+spruce.dbh <- picea %>%
   mutate(stand_type = case_when(
-    CODE %in% c("NW", "NR", "NB", "BR", "RW", "BW", "BN") ~ "Mixed",
+    CODE %in% c("NW", "NR", "BN", "BR", "RW", "BW") ~ "Mixed",
     CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
     TRUE ~ NA_character_
   )) %>%
   filter(!is.na(DBH.23) & !is.na(stand_type))  
 
-ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+ggplot(spruce.dbh, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  
   labs(x = "DBH (inches)",
        y = "Density") +
@@ -1431,7 +1532,7 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   theme(legend.position = "top") +
   theme(legend.title = element_blank())
 
-ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
+ggplot(spruce.dbh, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  
   labs(x = "DBH (inches)", y = "Density") +
   scale_fill_manual(values = c("Mixed" = "blue", "Monoculture" = "red")) +
@@ -1442,12 +1543,12 @@ ggplot(spruce, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
   facet_wrap(~ CODE)  
 
 
-spruce2 <- spruce %>%
+spruce.dbh2 <- spruce.dbh %>%
   filter(!(CODE == "BW" & SPP == "RS"),   # Remove SPP RS in CODE BW
          !(CODE == "NR" & SPP == "BS"),   # Remove SPP BS in CODE NR
          !(CODE == "RW" & SPP %in% c("NS", "BS")))  # Remove SPP NS & BS in CODE RW
 
-ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
+ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
   labs(x = "DBH (in)", y = "Density") +
   scale_x_continuous(breaks = seq(0, max(spruce2$DBH.23, na.rm = TRUE), by = 2),
@@ -1456,6 +1557,20 @@ ggplot(spruce2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   theme(legend.position = "top",
         legend.title = element_blank()) +
   facet_wrap(~ CODE)
+
+spruce.filtered <- spruce.dbh2 %>% 
+  filter(CODE %in% c("BR", "RW", "NR", "R"))
+
+ggplot(spruce.filtered, aes(x = DBH.23, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (in)", y = "Density", fill = "Species", color = "Species") + 
+  scale_x_continuous(breaks = seq(0, max(spruce.filtered$DBH.23, na.rm = TRUE), by = 2),
+                     expand = expansion(mult = c(0.05, 0.1))) +  
+  theme_minimal() +
+  theme(legend.position = "right",  
+        legend.title = element_text(size = 10)) +  
+  facet_wrap(~ CODE)
+
 
 #convert to metric 
 #ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
@@ -1581,18 +1696,18 @@ ggplot(spruce2, aes(x = plot.vol, fill = SPP, color = SPP)) +
 #-------------------------------------------------------------------------------
 # final.ht distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
 #-------------------------------------------------------------------------------
-spruce <- picea %>%
+spruce.ht <- picea %>%
   mutate(
     stand_type = case_when(
-      CODE %in% c("NW", "NR", "NB", "BN", "RW", "BW", "BN") ~ "Mixed",
+      CODE %in% c("NW", "NR", "BN", "BR", "RW", "BW") ~ "Mixed",
       CODE %in% c("N", "W", "B", "R") ~ "Monoculture",
       TRUE ~ NA_character_
     ),
     final.ht = final.ht     
   ) %>%
-  filter(!is.na(plot.vol) & !is.na(final.ht) & !is.na(stand_type))  
+  filter(!is.na(final.ht) & !is.na(stand_type))  
 
-ggplot(spruce, aes(x = final.ht, fill = stand_type, color = stand_type)) +
+ggplot(spruce.ht, aes(x = final.ht, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  
   labs(x = "Height (m)",  
        y = "Density") +
@@ -1603,18 +1718,18 @@ ggplot(spruce, aes(x = final.ht, fill = stand_type, color = stand_type)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)
 
-spruce2 <- spruce %>%
+spruce.ht2 <- spruce.ht %>%
   filter(!(CODE == "BW" & SPP == "RS"),   
          !(CODE == "NR" & SPP == "BS"),  
          !(CODE == "RW" & SPP %in% c("NS", "BS")))  
 
-ggplot(spruce2, aes(x = final.ht, fill = SPP, color = SPP)) +
+ggplot(spruce.ht2, aes(x = final.ht, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
   labs(x = "Height (ft)", y = "Density") +
   theme_minimal() +
   theme(legend.position = "top",
         legend.title = element_blank()) +
-  facet_wrap(~ CODE)
+  facet_wrap(~ CODE) #weibull looks good to fit these, if skewed consider a gamma or log-normal distribution
 
 #convert to metric
 #ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
@@ -1626,7 +1741,7 @@ ggplot(spruce2, aes(x = final.ht, fill = SPP, color = SPP)) +
   #facet_wrap(~ CODE)
 
 #-------------------------------------------------------------------------------
-# fitting Weibull dsitrubution to DBH.23 distrubutions
+# fitting Weibull distribution to DBH.23 distrubution
 #-------------------------------------------------------------------------------
 library(fitdistrplus)
 #another package created to fit weibull to diameters in ForestFit
@@ -1645,10 +1760,10 @@ fitted.mods <- spruce2 %>%
 
 fitted.mods
 
-
 # Test between SPP in CODE or across CODE
-SPP1 <- spruce2 %>% filter(CODE == "RW" & SPP == "RS") %>% pull(DBH.23)
-SPP2 <- spruce2 %>% filter(CODE == "RW" & SPP == "WS") %>% pull(DBH.23)
+SPP1 <- spruce2 %>% filter(CODE == "NR" & SPP == "NS") %>% pull(DBH.23)
+SPP2 <- spruce2 %>% filter(CODE == "NR" & SPP == "RS") %>% pull(DBH.23)
+#SPP2 <- SPP2[SPP2 > 0]
 
 # fit weibull distributions
 fit1 <- tryCatch(fitdist(SPP1, "weibull"), error = function(e) NULL)
@@ -1660,7 +1775,7 @@ fit2
 #likelihood Rratio test 
 lrt <- 2 * (logLik(fit1) - logLik(fit2))
 p_value <- 1 - pchisq(lrt, df = 1)  # degrees of freedom = 1
-lrt_statistic
+lrt
 p_value
 
 ggplot() +
@@ -1676,7 +1791,7 @@ ggplot() +
 #CODES with significant differences amongst SPP DBH.23 distributions
 #BN p-value 0
 #BR p-value 1
-#BW not working WS = null
+#BW p-value 0 
 #NR p-value 1
 #NW p-value 1
 #RW p-value 0
@@ -1704,44 +1819,77 @@ ggplot() +
 #WS in W and RW p-value=1
 
 
+#mixed effects weibull model
+spruce2 <- spruce2 %>%
+  filter(!is.na(DBH.23) & DBH.23 > 0)  
+spruce.2 <- spruce2 %>% mutate(log.DBH = log(DBH.23))  # log-transform for Weibull-like fit
+
+model.mixed <- lmer(log.DBH ~ CODE + (1 | BLOCK), data = spruce.2)
+summary(model.mixed)
+model.null <- lmer(log_DBH ~ (1 | BLOCK), data = spruce.2)  #
+anova(model.null, model.mixed)
 
 #-------------------------------------------------------------------------------
 # fitting Weibull distribution to final.ht distributions
 #-------------------------------------------------------------------------------
-SPP1 <- spruce2 %>% filter(CODE == "RW" & SPP == "RS") %>% pull(final.ht)
-SPP2 <- spruce2 %>% filter(CODE == "RW" & SPP == "WS") %>% pull(final.ht)
+spruce3 <- spruce %>%
+  filter(!((CODE == "BW" & SPP == "RS") | 
+             (CODE == "NR" & SPP == "BS") | 
+             (CODE == "RW" & SPP %in% c("NS", "BS"))) & 
+           !is.na(final.ht) & !is.nan(final.ht))
 
-# Fit Weibull distributions for both species
-fit1 <- fit_weibull(data = data.frame(final.ht = SPP1), var = "final.ht")
-fit2 <- fit_weibull(data = data.frame(final.ht = SPP2), var = "final.ht")
+fitted.mod <- spruce3 %>%
+  split(~ CODE + SPP) %>%
+  map(~ tryCatch(fitdist(.x$final.ht, "weibull"), error = function(e) NULL)) %>%
+  keep(~ !is.null(.)) 
+
+fitted.mod
+
+# Test between SPP in CODE or across CODE
+SPP1 <- spruce3 %>% filter(CODE == "BR" & SPP == "BS") %>% pull(final.ht)
+SPP2 <- spruce3 %>% filter(CODE == "BR" & SPP == "RS") %>% pull(final.ht)
+#SPP2 <- SPP2[SPP2 > 0]
+
+# fit weibull distributions
+fit1 <- tryCatch(fitdist(SPP1, "weibull"), error = function(e) NULL)
+fit2 <- tryCatch(fitdist(SPP2, "weibull"), error = function(e) NULL)
 
 fit1
 fit2
 
-# Perform Likelihood Ratio Test (LRT)
-lrt_statistic <- 2 * (logLik(fit1) - logLik(fit2))
-p_value <- 1 - pchisq(lrt_statistic, df = 1)  # degrees of freedom = 1
-lrt_statistic
-p_value
+#likelihood Rratio test 
+lrt <- 2 * (logLik(fit1) - logLik(fit2))
+p.value <- 1 - pchisq(lrt, df = 1)  # degrees of freedom = 1
+print(p.value)
 
-ggplot() +
-  geom_histogram(aes(x = SPP1, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "blue") +
-  stat_function(fun = dweibull, args = list(shape = fit1$estimate[1], scale = fit1$estimate[2]), color = "blue") +
-  geom_histogram(aes(x = SPP2, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "red") +
-  stat_function(fun = dweibull, args = list(shape = fit2$estimate[1], scale = fit2$estimate[2]), color = "red") +
-  theme_minimal() +
-  labs(title = "Comparison of Fitted Weibull Distributions",
-       x = "Height (ft)", y = "Density")
 
-#CODES with significant differences amongst SPP DBH.23 distributions
+#CODES with significant differences amongst SPP final.ht distributions
 #BN p-value 0
-#BR p-value 1
-#BW p-value 0
+#BR p-value 0
+#BW p-value 0 
 #NR p-value 1
 #NW p-value 1
 #RW p-value 0
 
 
+#Amongst SPP in TRMT
+#BS in B, BN, BR, BW
+#BS in B and BN p-value=1
+#BS in B and BR p-value=1
+#BS in B and BW p-value=1
 
+#NS in N, BN, NR, NW
+#NS in N and BN p-value=1
+#NS in N and NR p-value=1
+#NS in N and NW p-value=1
 
+#RS in R, BR, NR, RW
+#RS in R and BR p-value=1
+#RS in R and NR p-value=1
+#RS in R and RW p-value=1
+
+#WS in W, BW, NW, RW
+#WS in W and BRW p-value=1
+#WS in W and NW p-value=1
+#WS in W and RW p-value=1
 
