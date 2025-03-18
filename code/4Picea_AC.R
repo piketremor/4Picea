@@ -641,7 +641,15 @@ vol <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = picea)
 summary(vol)
 AIC(vol)
 plot(vol)
-------------------------------------------------------------------
+
+plot(vol$fitted.values, resid(vol), 
+     xlab = "Fitted Values", 
+     ylab = "Residuals", 
+     main = "Residual Plot",
+     pch = 20, col = "black")
+abline(h = 0, lty = 2, col = "red")
+
+#-------------------------------------------------------------------------------
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
 library(randomForest)
@@ -1207,34 +1215,36 @@ ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
 # Multiple Comparisons Test of Stand Level Metrics
 # Post-hoc tukey HSD comparison for plot-level metrics
 #-------------------------------------------------------------------------------
+library(ggplot2)
+library(dplyr)
 library(agricolae)
 library(tibble)
 
-mcp<- picea %>% filter(CODE != "C")
+mcp <- picea %>% filter(CODE != "C")
 
-aov <- aov(plot.vol ~ CODE, data = mcp)
+aov <- aov(rdi ~ CODE, data = mcp)
 
 tukey <- HSD.test(aov, "CODE", group = TRUE)
 
 tukey.results <- tukey$groups %>%
   as.data.frame() %>%
   rownames_to_column("CODE") %>%  
-  rename(mean_vol = plot.vol)  
+  rename(mean_rdi = rdi)
 
 print(tukey.results)
 
-max <- max(mcp$plot.vol, na.rm = TRUE)  
+max_rdi <- max(mcp$rdi, na.rm = TRUE)
 
-ggplot(mcp, aes(x = CODE, y = plot.vol, fill = CODE)) +
-  geom_boxplot(outlier.shape = NA, alpha = 0.6) +  
-  geom_jitter(width = 0.2, alpha = 0.4) +  
-  geom_text(data = tukey.results, aes(x = CODE, y = max * 1.05, label = groups), 
+p.vol.code <- ggplot(mcp, aes(x = factor(CODE), y = rdi)) +
+  geom_boxplot(fill = "grey80", color = "black") +  
+  geom_text(data = tukey.results, aes(x = CODE, y = max_rdi * 1.05, label = groups), 
             size = 5, fontface = "bold") +  
-  labs(title = "Post-hoc Tukey HSD Comparison",
-       y = "TPA",
-       x = "Species Mixture") +
-  theme_minimal() +
-  theme(legend.position = "none")
+  ylab("Relative Density Index (%)") +
+  xlab("Species Mixture") +
+  theme_minimal(base_size = 14)
+
+# Print the plot
+print(p.vol.code)
 
 #-------------------------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
@@ -1743,153 +1753,289 @@ ggplot(spruce.ht2, aes(x = final.ht, fill = SPP, color = SPP)) +
 #-------------------------------------------------------------------------------
 # fitting Weibull distribution to DBH.23 distrubution
 #-------------------------------------------------------------------------------
-library(fitdistrplus)
-#another package created to fit weibull to diameters in ForestFit
-library(purrr)
+# account for replicates 
+# [1] calculate the weibull shape/scale for each block/plot/code/species, and just use a mcp for both shape and scale by group
 
-spruce2 <- spruce %>%
+library(fitdistrplus) 
+library(multcomp) 
+
+spruce.filt <- picea %>%
   filter(!((CODE == "BW" & SPP == "RS") | 
              (CODE == "NR" & SPP == "BS") | 
              (CODE == "RW" & SPP %in% c("NS", "BS"))) & 
            !is.na(DBH.23) & !is.nan(DBH.23))
 
-fitted.mods <- spruce2 %>%
-  split(~ CODE + SPP) %>%
+fitted.mods2 <- spruce.filt %>%
+  split(~ BLOCK + CODE + SPP) %>%
   map(~ tryCatch(fitdist(.x$DBH.23, "weibull"), error = function(e) NULL)) %>%
   keep(~ !is.null(.)) 
+fitted.mods2
 
-fitted.mods
+# extract shape and scale parameters into a tidy dataframe
+ss.df <- fitted.mods2 %>%
+  imap_dfr(~ tibble(
+    BLOCK = strsplit(.y, "_")[[1]][1],
+    #PLOT = strsplit(.y, "_")[[1]][2],
+    CODE = strsplit(.y, "_")[[1]][3],
+    SPP = strsplit(.y, "_")[[1]][4],
+    Shape = .x$estimate[["shape"]],
+    Scale = .x$estimate[["scale"]]
+  ))
 
-# Test between SPP in CODE or across CODE
-SPP1 <- spruce2 %>% filter(CODE == "NR" & SPP == "NS") %>% pull(DBH.23)
-SPP2 <- spruce2 %>% filter(CODE == "NR" & SPP == "RS") %>% pull(DBH.23)
-#SPP2 <- SPP2[SPP2 > 0]
 
-# fit weibull distributions
-fit1 <- tryCatch(fitdist(SPP1, "weibull"), error = function(e) NULL)
-fit2 <- tryCatch(fitdist(SPP2, "weibull"), error = function(e) NULL)
+ss.df <- ss.df %>%
+  mutate(BLOCK = as.character(BLOCK)) %>%
+  separate(BLOCK, into = c("BLOCK", "CODE", "SPP"), sep = "\\.", remove = FALSE)
 
-fit1
-fit2
+#ss.df.avg <- ss.df %>%
+  #group_by(BLOCK + CODE, SPP) %>%
+  #summarize(
+    #Shape = mean(Shape, na.rm = TRUE),
+    #Scale = mean(Scale, na.rm = TRUE),
+    #.groups = "drop"  
+  #)
 
-#likelihood Rratio test 
-lrt <- 2 * (logLik(fit1) - logLik(fit2))
-p_value <- 1 - pchisq(lrt, df = 1)  # degrees of freedom = 1
-lrt
-p_value
+#head(ss.df.avg)
 
-ggplot() +
-  geom_histogram(aes(x = SPP1, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "blue") +
-  stat_function(fun = dweibull, args = list(shape = fit1$estimate[1], scale = fit1$estimate[2]), color = "blue") +
-  geom_histogram(aes(x = SPP2, y = ..density..), binwidth = 0.5, alpha = 0.5, fill = "red") +
-  stat_function(fun = dweibull, args = list(shape = fit2$estimate[1], scale = fit2$estimate[2]), color = "red") +
-  theme_minimal() +
-  labs(title = "Fitted Weibull Distributions",
-       x = "DBH.23", y = "Density")
+#tukey <- function(ss.df) {
+  #mod.shape <- aov(Shape ~ CODE + SPP + BLOCK, data = ss.df)
+  #mod.scale <- aov(Scale ~ CODE + SPP + BLOCK, data = ss.df)
+  
+  #tukey.shape <- TukeyHSD(mod.shape)
+  #tukey.scale <- TukeyHSD(mod.scale)
+  
+  #list(Tukey.Shape = tukey.shape, Tukey.Scale = tukey.scale)
+#}
+
+#t.results <- ss.df %>%
+  #group_by(CODE, SPP) %>%  
+  #group_split() %>%        
+  #map(tukey)
+
+#t.results
+
+
+# test differences between SPP Scale and Shape of DBH distributions 1 code at a time
+CODE <- ss.df %>%
+  filter(CODE == "BR", SPP %in% c("BS", "RS"))
+
+SPP <- ss.df %>%
+  filter(SPP == "WS" & CODE %in% c("W", "BW", "NW", "RW"))
+
+
+# ANOVA and Tukey HSD test
+shape.aov <- aov(Shape ~ CODE, data = SPP)
+scale.aov <- aov(Scale ~ CODE, data = SPP)
+
+summary(shape.aov)
+summary(scale.aov)
+
+shape.tukey <- HSD.test(shape.aov, "CODE", group = TRUE)
+scale.tukey <- HSD.test(scale.aov, "CODE", group = TRUE)
+
+shape.tukey
+scale.tukey
 
 
 #CODES with significant differences amongst SPP DBH.23 distributions
-#BN p-value 0
-#BR p-value 1
-#BW p-value 0 
-#NR p-value 1
-#NW p-value 1
-#RW p-value 0
+#SPP df =1 (2-1); residual df =4 (6-2)
 
+#BN aov shape p-value: 0.392
+#   aov scale p-value: 0.112 
+#   tukey shape: a a 
+#   tukey scale: a a
+#BR aov shape p-value: 0.488
+#   aov scale p-value: 0.479
+#   tukey shape: a a 
+#   tukey scale: 
+#BW aov shape p-value: 0.237
+#   aov scale p-value: 0.734
+#   tukey shape: a a
+#   tukey scale: a a
+#NR aov shape p-value: 0.00334
+#   aov scale p-value: 0.000535
+#   tukey shape: a b
+#   tukey scale: a b
+#NW aov shape p-value: 0.0815
+#   aov scale p-value: 0.367
+#   tukey shape: a a
+#   tukey scale: a a
+#RW aov shape p-value: 0.0155
+#   aov scale p-value: 4e-04
+#   tukey shape: a b
+#   tukey scale: a b
 
-#Amongst SPP in TRMT
+#SPP with significant differences amongst DBH.23 distributions in CODE
+# CODE df = 4; residual df = 8
+
 #BS in B, BN, BR, BW
-#BS in B and BN p-value=1
-#BS in B and BR p-value=1
-#BS in B and BW p-value=1
+# no significant differences at 0.05 in shape & scale
 
 #NS in N, BN, NR, NW
-#NS in N and BN p-value=1
-#NS in N and NR p-value=1
-#NS in N and NW p-value=1
+# no significant differences at 0.05 in shape & scale
 
 #RS in R, BR, NR, RW
-#RS in R and BR p-value=0.0003
-#RS in R and NR p-value=1
-#RS in R and RW p-value=1
+# no significant differences at 0.05 in shape & scale
 
 #WS in W, BW, NW, RW
-#WS in W and BRW p-value=1
-#WS in W and NW p-value=1
-#WS in W and RW p-value=1
+# no significant differences at 0.05 in shape & scale
+
+
+
+# student t-test
+#shape.ttest <- t.test(Shape ~ SPP, data = CODE)
+
+#scale.ttest <- t.test(Scale ~ SPP, data = CODE)
+
+#shape.ttest
+#scale.ttest
+
+
+
+
+# [2] use 1-inch dbh classes and use this your response variable, fit a weibull or other distribution with nlme approach. 
+
+dbh1 <- spruce2 %>%
+  mutate(DBH1 = cut(DBH.23, breaks = seq(0, max(DBH.23), by = 1), right = FALSE, labels = FALSE)) %>%
+  group_by(SPP, CODE) %>%
+  ungroup()
+
+dbh1 <- dbh1[!is.na(dbh1$DBH1), ]
+
+weibull_model <- function(x, shape, scale) {
+  return(scale * (shape - 1) * (x / scale)^(shape - 1) * exp(-(x / scale)^shape))
+}
+
+weibull.mod <-  nlme(DBH1 ~  weibull_model(DBH1, shape, scale),
+                data = dbh1,
+                fixed =shape + scale ~ CODE * SPP,
+                random = shape + scale ~ CODE * SPP| BLOCK,  
+                na.action = na.pass,
+                start = c(shape = 1, scale = 1),
+                control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
 
 
 #mixed effects weibull model
-spruce2 <- spruce2 %>%
-  filter(!is.na(DBH.23) & DBH.23 > 0)  
-spruce.2 <- spruce2 %>% mutate(log.DBH = log(DBH.23))  # log-transform for Weibull-like fit
+#spruce2 <- spruce2 %>%
+  #filter(!is.na(DBH.23) & DBH.23 > 0)  
+#spruce.2 <- spruce2 %>% mutate(log.DBH = log(DBH.23))  # log-transform for Weibull-like fit
 
-model.mixed <- lmer(log.DBH ~ CODE + (1 | BLOCK), data = spruce.2)
-summary(model.mixed)
-model.null <- lmer(log_DBH ~ (1 | BLOCK), data = spruce.2)  #
-anova(model.null, model.mixed)
+#model.mixed <- lmer(log.DBH ~ CODE + (1 | BLOCK), data = spruce.2)
+#summary(model.mixed)
+#model.null <- lmer(log_DBH ~ (1 | BLOCK), data = spruce.2)  #
+#anova(model.null, model.mixed)
+
 
 #-------------------------------------------------------------------------------
 # fitting Weibull distribution to final.ht distributions
 #-------------------------------------------------------------------------------
-spruce3 <- spruce %>%
+# account for replicates 
+# [1] calculate the weibull shape/scale for each block/plot/code/species, and just use a mcp for both shape and scale by group
+
+library(fitdistrplus) 
+library(multcomp) 
+
+height.filt <- picea %>%
   filter(!((CODE == "BW" & SPP == "RS") | 
              (CODE == "NR" & SPP == "BS") | 
              (CODE == "RW" & SPP %in% c("NS", "BS"))) & 
            !is.na(final.ht) & !is.nan(final.ht))
 
-fitted.mod <- spruce3 %>%
-  split(~ CODE + SPP) %>%
+fitted.mods3 <- height.filt %>%
+  split(~ BLOCK + CODE + SPP) %>%
   map(~ tryCatch(fitdist(.x$final.ht, "weibull"), error = function(e) NULL)) %>%
   keep(~ !is.null(.)) 
+fitted.mods3
 
-fitted.mod
+# extract shape and scale parameters into a tidy dataframe
+ss.ht.df <- fitted.mods3 %>%
+  imap_dfr(~ tibble(
+    BLOCK = strsplit(.y, "_")[[1]][1],
+    #PLOT = strsplit(.y, "_")[[1]][2],
+    CODE = strsplit(.y, "_")[[1]][3],
+    SPP = strsplit(.y, "_")[[1]][4],
+    Shape = .x$estimate[["shape"]],
+    Scale = .x$estimate[["scale"]]
+  ))
 
-# Test between SPP in CODE or across CODE
-SPP1 <- spruce3 %>% filter(CODE == "BR" & SPP == "BS") %>% pull(final.ht)
-SPP2 <- spruce3 %>% filter(CODE == "BR" & SPP == "RS") %>% pull(final.ht)
-#SPP2 <- SPP2[SPP2 > 0]
 
-# fit weibull distributions
-fit1 <- tryCatch(fitdist(SPP1, "weibull"), error = function(e) NULL)
-fit2 <- tryCatch(fitdist(SPP2, "weibull"), error = function(e) NULL)
+ss.ht.df <- ss.ht.df %>%
+  mutate(BLOCK = as.character(BLOCK)) %>%
+  separate(BLOCK, into = c("BLOCK", "CODE", "SPP"), sep = "\\.", remove = FALSE)
 
-fit1
-fit2
+# test differences between SPP Scale and Shape of final.ht distributions 1 code at a time
+CODE <- ss.ht.df %>%
+  filter(CODE == "RW", SPP %in% c("RS", "WS"))
 
-#likelihood Rratio test 
-lrt <- 2 * (logLik(fit1) - logLik(fit2))
-p.value <- 1 - pchisq(lrt, df = 1)  # degrees of freedom = 1
-print(p.value)
+#SPP <- ss.ht.df %>%
+  #filter(SPP == "BS" & CODE %in% c("B", "BN", "BR", "BW"))
+
+
+# ANOVA and Tukey HSD test
+shape.aov <- aov(Shape ~ SPP, data = CODE)
+scale.aov <- aov(Scale ~ SPP, data = CODE)
+
+summary(shape.aov)
+summary(scale.aov)
+
+shape.tukey <- HSD.test(shape.aov, "SPP", group = TRUE)
+scale.tukey <- HSD.test(scale.aov, "SPP", group = TRUE)
+
+shape.tukey
+scale.tukey
 
 
 #CODES with significant differences amongst SPP final.ht distributions
-#BN p-value 0
-#BR p-value 0
-#BW p-value 0 
-#NR p-value 1
-#NW p-value 1
-#RW p-value 0
+#SPP df =1 (2-1); residual df =4 (6-2)
 
+#BN aov shape p-value: 0.971
+#   aov scale p-value: 0.149 
+#   tukey shape: a a 
+#   tukey scale: a a
+#BR aov shape p-value: 0.333
+#   aov scale p-value: 0.0796
+#   tukey shape: a a 
+#   tukey scale: a a 
+#BW aov shape p-value: 0.0821
+#   aov scale p-value: 0.6
+#   tukey shape: a a
+#   tukey scale: a a
+#NR aov shape p-value: 0.0843
+#   aov scale p-value: 0.238
+#   tukey shape: a a
+#   tukey scale: a a
+#NW aov shape p-value: 0.991
+#   aov scale p-value: 0.172
+#   tukey shape: a a
+#   tukey scale: a a
+#RW aov shape p-value: 0.112
+#   aov scale p-value: 0.00114 *
+#   tukey shape: a a
+#   tukey scale: a b
 
-#Amongst SPP in TRMT
+#SPP with significant differences amongst final.ht distributions in CODE
+# CODE df = 4; residual df = 8
+
 #BS in B, BN, BR, BW
-#BS in B and BN p-value=1
-#BS in B and BR p-value=1
-#BS in B and BW p-value=1
+#   shape p-value 0.719
+#   B a, BN a, BR a, BW a
+#   scale p-value: 0.864
+#   B a, BN a, BR a, BW a
 
 #NS in N, BN, NR, NW
-#NS in N and BN p-value=1
-#NS in N and NR p-value=1
-#NS in N and NW p-value=1
+#   shape p-value 0.535
+#   N a, BN a, NR a, NW a
+#   scale p-value: 0.57
+#   N a, BN a, NR a, NW a
 
 #RS in R, BR, NR, RW
-#RS in R and BR p-value=1
-#RS in R and NR p-value=1
-#RS in R and RW p-value=1
+#   shape p-value 0.864
+#   R a, BR a, NR a, RW a
+#   scale p-value: 0.326
+#   R a, BR a, NR a, RW a
 
 #WS in W, BW, NW, RW
-#WS in W and BRW p-value=1
-#WS in W and NW p-value=1
-#WS in W and RW p-value=1
-
+#   shape p-value 0.0319 *
+#   RW a, NW ab, BW b, W b
+#   scale p-value: 0.74
+#   RW a, NW a, BW a, W a
