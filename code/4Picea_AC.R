@@ -640,9 +640,18 @@ picea <- picea %>%
 vol <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = picea)
 summary(vol)
 AIC(vol)
-plot(vol)
 
-plot(vol$fitted.values, resid(vol), 
+vol2 <- lm(stand.vol ~ I(log(LAI)) + I(log(roughness)) + factor(CODE), data = picea)
+summary(vol2)
+AIC(vol2)
+
+vol3 <- lm(stand.vol ~ roughness + I(log(LAI)) + factor(CODE), data = picea)
+summary(vol3)
+AIC(vol3)
+
+#plot(vol)
+
+plot(vol3$fitted.values, resid(vol), 
      xlab = "Fitted Values", 
      ylab = "Residuals", 
      main = "Residual Plot",
@@ -1015,7 +1024,7 @@ nd2 <- left_join(nd,cpi.frame)
 head(nd2)
 
 names(spruce.only)
-al <- spruce.only[c(1:8,12,66,70,90)]
+al <- spruce.only[c(1:8,12,66,70,91)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
@@ -1038,8 +1047,6 @@ xyplot(cr.points~prop|CODE,data=cr.demog,type=c("p","l"),
 # obviously the spruce only filter doesn't work.. oh well. 
 ca <- dplyr::filter(cr.demog,cr.points>0&CODE=="RW"|CODE=="NR"|CODE=="NW"|CODE=="BR"|CODE=="BW"|CODE=="BN")
 
-xyplot(prop~cr.points|CODE,data=ca,type=c("l"))
-
 ca <- dplyr::filter(cr.demog, cr.points > 0 & 
                       (CODE %in% c("RW", "NR", "NW", "BR", "BW", "BN")) & 
                       (SPP %in% c("BS", "NS", "RS", "WS")) &
@@ -1047,7 +1054,11 @@ ca <- dplyr::filter(cr.demog, cr.points > 0 &
                           (SPP %in% c("RS", "WS") & CODE == "BN") |
                           (SPP %in% c("BS", "NS") & CODE == "RW") |
                           (SPP %in% c("RS", "NS") & CODE == "BW")))  
+
 ca$SPP <- factor(ca$SPP, levels = c("BS", "NS", "RS", "WS"))
+
+xyplot(prop~cr.points|CODE,data=ca,type=c("l"))
+
 
 ca.avg <- ca %>%
   group_by(CODE, SPP, prop) %>%
@@ -1069,43 +1080,71 @@ write.csv(cr.demog,"Crown_point_summary.csv")
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
 library(fitdistrplus)
+library(agricolae)
+
 beta <- function(ca) {
-  ca <- ca[ca$cr.points > 0, ]
-  fit <- fitdist(ca$prop, "beta", method = "mme")
+  ca <- ca[ca$cr.points > 0, ]  
+  fit <- fitdist(ca$prop, "beta", method = "mme")  
   return(data.frame(alpha = fit$estimate["shape1"], beta = fit$estimate["shape2"]))
 }
 
 beta.fit <- ca %>%
-  group_by(CODE, SPP) %>%
+  group_by(BLOCK, CODE, SPP) %>%
   group_modify(~ beta(.x)) %>%
   ungroup()
 
 print(beta.fit)
 
-SPP1 <- ca %>% filter(CODE == "BR" & SPP == "BS") %>% pull(prop)
-SPP2 <- ca %>% filter(CODE == "BR" & SPP == "RS") %>% pull(prop)
+CODE <- beta.fit %>%
+  filter(CODE == "RW", SPP %in% c("RS", "WS"))
 
-fit1 <- tryCatch(fitdist(SPP1, "beta", method = "mme"), error = function(e) NULL)
-fit2 <- tryCatch(fitdist(SPP2, "beta", method = "mme"), error = function(e) NULL)
+#SPP <- beta.fit %>%
+  #filter(SPP == "RS" & CODE %in% c("R", "BR", "NR", "RW"))
 
-logLik1 <- logLik(fit1)
-logLik2 <- logLik(fit2)
+alpha.aov <- aov(alpha ~ SPP, data = CODE)
+beta.aov <- aov(beta ~ SPP, data = CODE)
 
-lrt.statistic <- 2 * (logLik1 - logLik2)
+summary(alpha.aov)
+summary(beta.aov)
 
-# compute the p-value from the chi-squared distribution (df = 1 for comparing two distributions)
-p.value <- 1 - pchisq(lrt.statistic, df = 1)
+alpha.tukey <- HSD.test(alpha.aov, "SPP", group = TRUE)
+beta.tukey <- HSD.test(beta.aov, "SPP", group = TRUE)
 
-print(lrt.statistic)
-print(p.value)
+alpha.tukey
+beta.tukey
 
-#CODES with significant differences amongst SPP cr.points distributions
-#BN lrt.stat 9.646666667 p-value 0.00189
-#BR lrt.stat 7.220543266 p-value 0.007207389
-#BW lrt.stat 2.5337613   p-value 0.1114343
-#NR lrt.stat 0           p-value 1
-#NW lrt.stat -16.34      p-value 1
-#RW lrt.stat -1.889348   p-value 1
+#CODES with significant differences amongst SPP final.ht distributions
+#SPP df =1 (2-1); residual df =4 (6-2)
+
+#BN aov alpha p-value: 0.0186 *
+#   aov beta p-value: 0.0752 
+#   tukey alpha: a b
+#   tukey beta: a a
+
+#BR aov alpha p-value: 0.12
+#   aov beta p-value: 0.399
+#   tukey alpha: a a
+#   tukey beta: a a
+
+#BW aov alpha p-value: 0.282
+#   aov beta p-value: 0.497
+#   tukey alpha: a a
+#   tukey beta: a a
+
+#NR aov alpha p-value: 0.525
+#   aov beta p-value: 0.335
+#   tukey alpha: a a
+#   tukey beta: a a
+
+#NW aov alpha p-value: 0.00355 *
+#   aov beta p-value: 0.697
+#   tukey alpha: a b
+#   tukey beta: a a
+
+#RW aov alpha p-value: 0.141
+#   aov beta p-value: 0.0184 * 
+#   tukey alpha: a a
+#   tukey beta: a b
 
 
 #-------------------------------------------------------------------------------
@@ -1821,7 +1860,6 @@ CODE <- ss.df %>%
 
 SPP <- ss.df %>%
   filter(SPP == "WS" & CODE %in% c("W", "BW", "NW", "RW"))
-
 
 # ANOVA and Tukey HSD test
 shape.aov <- aov(Shape ~ CODE, data = SPP)
