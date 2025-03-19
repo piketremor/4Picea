@@ -651,7 +651,7 @@ AIC(vol3)
 
 #plot(vol)
 
-plot(vol3$fitted.values, resid(vol), 
+plot(vol2$fitted.values, resid(vol), 
      xlab = "Fitted Values", 
      ylab = "Residuals", 
      main = "Residual Plot",
@@ -1146,6 +1146,34 @@ beta.tukey
 #   tukey alpha: a a
 #   tukey beta: a b
 
+library(multcomp)
+
+beta.fit$SPP <- as.factor(beta.fit$SPP)
+beta.fit$CODE <- as.factor(beta.fit$CODE)
+
+amod <- lm(alpha ~ SPP + CODE, data = beta.fit)  
+bmod <- lm(beta ~ SPP + CODE, data = beta.fit)  
+
+summary(amod)
+summary(bmod)
+
+alpha.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) #just accounts for differences amongst CODEs 
+summary(alpha.glht)
+
+beta.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
+summary(beta.glht)
+
+# test for differences amongst SPP in each CODE individually
+
+#Shape
+amod <- lm(alpha ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
+alpha.glht <- glht(amod, linfct = mcp(SPP = "Tukey"))
+summary(alpha.glht)
+
+#Scale
+bmod <- lm(beta ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
+beta.glht <- glht(bmod, linfct = mcp(SPP = "Tukey"))
+summary(beta.glht)
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -1192,20 +1220,23 @@ oy <- function(data) {
 
 oy.results <- oy(plot.estimates)
 print(oy.results)
+
 avg.oy <- oy.results %>%
   group_by(Mixture) %>%
-  summarise(avg.oy = mean(Overyielding, na.rm = TRUE))
-print(avg.oy)
+  summarise(
+    avg.oy = mean(Overyielding, na.rm = TRUE),
+    se.oy = sd(Overyielding, na.rm = TRUE) / sqrt(n()),  # Standard Error
+    .groups = 'drop'
+  )
 
 ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
+  geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  # Add error bars
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", 
-       y = NULL) +
+  labs(x = "Species Mixture", y = NULL) +  # Remove y-axis title
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))  
-
+  scale_y_continuous(breaks = c(1))
 
 # calculate transgressive overyielding
 calculate_transgressive_overyielding <- function(data) {
@@ -1218,16 +1249,18 @@ calculate_transgressive_overyielding <- function(data) {
       species1 <- substr(mixture, 1, 1)
       species2 <- substr(mixture, 2, 2)
       
-      volume1 <- data$total_vol[data$CODE == species1]  
-      volume2 <- data$total_vol[data$CODE == species2]  
+      volume1 <- data$total.vol[data$CODE == species1]  # Fix column name
+      volume2 <- data$total.vol[data$CODE == species2]  # Fix column name
       
-      mixture_volume <- data$total_vol[i]  
+      mixture_volume <- data$total.vol[i]  # Fix column name
       
       if (length(volume1) > 0 && length(volume2) > 0) {
-        max_volume <- max(volume1, volume2, na.rm = TRUE)  # maximum volume of the two monocultures
-        transgressive_overyielding <- mixture_volume / max_volume  # ratio to the larger monoculture volume
+        max_volume <- max(c(volume1, volume2), na.rm = TRUE)  # Ensure valid max calculation
         
-        results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
+        if (!is.na(max_volume) && max_volume > 0) {  # Prevent division by zero
+          transgressive_overyielding <- mixture_volume / max_volume
+          results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
+        }
       }
     }
   }
@@ -1235,20 +1268,29 @@ calculate_transgressive_overyielding <- function(data) {
   return(results)
 }
 
+
 toy_results <- calculate_transgressive_overyielding(plot.estimates)
+print(toy_results)  
+
 avg_toy <- toy_results %>%
   group_by(Mixture) %>%
-  summarise(avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE))
-print(avg_toy)
+  summarise(
+    avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE),
+    se_transgressive_oy = sd(Transgressive_Overyielding, na.rm = TRUE) / sqrt(n())
+  )
+
+print(avg_toy)  
 
 ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
+  geom_errorbar(aes(ymin = avg_transgressive_oy - se_transgressive_oy, 
+                    ymax = avg_transgressive_oy + se_transgressive_oy), 
+                width = 0.2) +  # Add error bars
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", 
-       y = NULL) +
+  labs(x = "Species Mixture", y = NULL) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))  
+  scale_y_continuous(breaks = c(1))
 
 #-------------------------------------------------------------------------------
 # Multiple Comparisons Test of Stand Level Metrics
@@ -1607,6 +1649,16 @@ ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE)
 
+ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
+  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
+  labs(x = "DBH (in)", y = "Trees per Acre", fill = "Species", color = "Species") + 
+  scale_x_continuous(breaks = seq(0, max(spruce.filtered$DBH.23, na.rm = TRUE), by = 2),
+                     expand = expansion(mult = c(0.05, 0.1))) +  
+  theme_minimal() +
+  theme(legend.position = "right",  
+        legend.title = element_text(size = 10)) +  
+  facet_wrap(~ CODE)
+
 spruce.filtered <- spruce.dbh2 %>% 
   filter(CODE %in% c("BR", "RW", "NR", "R"))
 
@@ -1620,6 +1672,19 @@ ggplot(spruce.filtered, aes(x = DBH.23, fill = SPP, color = SPP)) +
         legend.title = element_text(size = 10)) +  
   facet_wrap(~ CODE)
 
+# DBH x TPA all and mixtures (need to convert to metric)
+spruce.dbh.f <- spruce.dbh2 %>%
+  filter(!CODE %in% c("B", "N", "R", "W"))
+
+ggplot(spruce.dbh.f, aes(x = DBH.23, fill = SPP, color = SPP)) +
+  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
+  labs(x = "DBH (in)", y = "Trees per Acre", fill = "Species", color = "Species") + 
+  scale_x_continuous(breaks = seq(0, max(spruce.filtered$DBH.23, na.rm = TRUE), by = 2),
+                     expand = expansion(mult = c(0.05, 0.1))) +  
+  theme_minimal() +
+  theme(legend.position = "right",  
+        legend.title = element_text(size = 10)) +  
+  facet_wrap(~ CODE)
 
 #convert to metric 
 #ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
@@ -1780,6 +1845,22 @@ ggplot(spruce.ht2, aes(x = final.ht, fill = SPP, color = SPP)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE) #weibull looks good to fit these, if skewed consider a gamma or log-normal distribution
 
+
+# HT by TPA, need to convert all and mixtures to metric
+spruce.ht2.f <- spruce.ht2 %>%
+  filter(!CODE %in% c("B", "N", "R", "W"))
+
+ggplot(spruce.ht2.f, aes(x = final.ht, fill = SPP, color = SPP)) +
+  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
+  labs(x = "Height (ft)", y = "Trees per Acre", fill = "Species", color = "Species") + 
+  scale_x_continuous(breaks = seq(0, max(spruce.ht2$final.ht, na.rm = TRUE), by = 5),
+                     expand = expansion(mult = c(0.1, 0.1))) +  # Adjusted expansion factor
+  theme_minimal() +
+  theme(legend.position = "right",  
+        legend.title = element_text(size = 10)) +  
+  facet_wrap(~ CODE)
+
+
 #convert to metric
 #ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
   #geom_density(alpha = 0.5) +  
@@ -1825,6 +1906,8 @@ ss.df <- fitted.mods2 %>%
 ss.df <- ss.df %>%
   mutate(BLOCK = as.character(BLOCK)) %>%
   separate(BLOCK, into = c("BLOCK", "CODE", "SPP"), sep = "\\.", remove = FALSE)
+
+ss.df <- ss.df %>% filter(CODE != "C")
 
 #ss.df.avg <- ss.df %>%
   #group_by(BLOCK + CODE, SPP) %>%
@@ -1890,8 +1973,8 @@ scale.tukey
 #   aov scale p-value: 0.734
 #   tukey shape: a a
 #   tukey scale: a a
-#NR aov shape p-value: 0.00334
-#   aov scale p-value: 0.000535
+#NR aov shape p-value: 0.00334 *
+#   aov scale p-value: 0.000535 *
 #   tukey shape: a b
 #   tukey scale: a b
 #NW aov shape p-value: 0.0815
@@ -1899,8 +1982,8 @@ scale.tukey
 #   tukey shape: a a
 #   tukey scale: a a
 #RW aov shape p-value: 0.0155
-#   aov scale p-value: 4e-04
-#   tukey shape: a b
+#   aov scale p-value: 4e-04 *
+#   tukey shape: a a
 #   tukey scale: a b
 
 #SPP with significant differences amongst DBH.23 distributions in CODE
@@ -1928,6 +2011,57 @@ scale.tukey
 #shape.ttest
 #scale.ttest
 
+library(multcomp)
+
+ss.df$SPP <- as.factor(ss.df$SPP)
+ss.df$CODE <- as.factor(ss.df$CODE)
+
+amod <- lm(Shape ~ SPP + CODE, data = ss.df)  
+bmod <- lm(Scale ~ SPP + CODE, data = ss.df)  
+
+summary(amod)
+summary(bmod)
+
+shape.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) #just accounts for differences amongst CODEs 
+summary(shape.glht)
+
+scale.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
+summary(scale.glht)
+
+# test for differences amongst SPP in each CODE individually
+
+#Shape
+amod <- lm(Shape ~ SPP, data = ss.df[ss.df$CODE == "RW", ])  
+shape.glht <- glht(amod, linfct = mcp(SPP = "Tukey"))
+summary(shape.glht)
+
+#Scale
+bmod <- lm(Scale ~ SPP, data = ss.df[ss.df$CODE == "RW", ])  
+scale.glht <- glht(bmod, linfct = mcp(SPP = "Tukey"))
+summary(scale.glht)
+
+
+# test for differences amongst SPP in each CODE all at once
+
+ss <- ss.df %>% filter(!CODE %in% c("B", "N", "R", "W"))
+
+amod <- lm(Shape ~ SPP * CODE, data = ss)  
+bmod <- lm(Scale ~ SPP * CODE, data = ss)  
+
+unique.code <- unique(ss$CODE)
+
+#loop isnt working correctly
+for (code in unique.code) {
+  amod <- lm(Shape ~ SPP, data = ss[ss$CODE == code, ]) 
+  shape.glht <- glht(amod, linfct = mcp(SPP = "Tukey"))
+  cat("\n\nTukey's HSD for Shape in CODE:", code, "\n")
+  print(summary(shape_glht))
+  
+  bmod <- lm(Scale ~ SPP, data = ss[ss$CODE == code, ])
+  scale.glht <- glht(bmod, linfct = mcp(SPP = "Tukey"))
+  cat("\n\nTukey's HSD for Scale in CODE:", code, "\n")
+  print(summary(scale_glht))
+}
 
 
 
@@ -2077,3 +2211,34 @@ scale.tukey
 #   RW a, NW ab, BW b, W b
 #   scale p-value: 0.74
 #   RW a, NW a, BW a, W a
+
+
+library(multcomp)
+
+ss.ht.df$SPP <- as.factor(ss.ht.df$SPP)
+ss.ht.df$CODE <- as.factor(ss.ht.df$CODE)
+
+cmod <- lm(Shape ~ SPP + CODE, data = ss.ht.df)  
+dmod <- lm(Scale ~ SPP + CODE, data = ss.ht.df)  
+
+summary(cmod)
+summary(dmod)
+
+shape.glht <- glht(cmod, linfct = mcp(CODE = "Tukey")) #just accounts for differences amongst CODEs 
+summary(shape.glht)
+
+scale.glht <- glht(dmod, linfct = mcp(CODE = "Tukey"))
+summary(scale.glht)
+
+# test for differences amongst SPP in each CODE individually
+
+#Shape
+cmod <- lm(Shape ~ SPP, data = ss.ht.df[ss.ht.df$CODE == "RW", ])  
+shape.glht <- glht(cmod, linfct = mcp(SPP = "Tukey"))
+summary(shape.glht)
+
+#Scale
+dmod <- lm(Scale ~ SPP, data = ss.ht.df[ss.ht.df$CODE == "RW", ])  
+scale.glht <- glht(dmod, linfct = mcp(SPP = "Tukey"))
+summary(scale.glht)
+
