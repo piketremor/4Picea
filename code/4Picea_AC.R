@@ -23,6 +23,7 @@ picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 site <- read.csv("4Picea_30m.csv")
 
+
 #min(site$elevation, na.rm = TRUE)  # Minimum elevation
 #mean(site$elevation, na.rm = TRUE) # Mean elevation
 #max(site$elevation, na.rm = TRUE)
@@ -217,6 +218,29 @@ summary(ht.mod)
 ranef(ht.mod)
 AIC(ht.mod) #7029
 
+predictions <- fitted(ht.mod)
+observed <- spruce$HT.23
+
+observed <- observed[!is.na(observed) & !is.na(predictions)]
+predictions <- predictions[!is.na(observed) & !is.na(predictions)]
+
+mb <- mean(observed - predictions)
+mab <- mean(abs(observed - predictions))
+
+sst <- sum((observed - mean(observed))^2) 
+sse <- sum((observed - predictions)^2)  
+rsq <- 1 - sse / sst  
+
+n <- length(observed)  
+p <- length(fixed.effects(ht.mod)) 
+adjrsq <- 1 - ((1 - rsq) * (n - 1) / (n - p - 1))  
+
+mb
+mab
+rsq
+adjrsq
+
+
 #ht.mod2 <- nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = picea,
                 #fixed = a + b ~ 1,
@@ -357,8 +381,6 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #crownratio <- crownratio %>%
   #left_join(coefficients, by = "sppgroup")  
 
-
-
 # impute missing crown ratios using the basic formula from FVS NE Variant
 # guessing this doesn't calibrate to the LCR.23 heights measured in the field
 # looks like this assigned the same cr.fit value by SPP don't vary that much .2-.5 CR. For example, I had a measured CR on 0.82 but the predicted CR was .28. 
@@ -390,7 +412,6 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #m2 <- lm(LCR.23~CODE+SPP,data=crownratio)
 #summary(m2)
 
-
 #m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
 #summary(m3)
 #m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
@@ -406,7 +427,6 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
 #crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
 #xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
-
 
 #cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 #data = crownratio,
@@ -468,7 +488,6 @@ xyplot(htl ~ final.ht | SPP,
        data = spruce.htl,
        subset = SPP %in% c("BS", "RS", "NS", "WS"))
 
-
 picea <- picea %>%
   left_join(spruce.htl %>% select(uid, BLOCK, PLOT, TREE, htl), 
             by = c("uid", "BLOCK", "PLOT", "TREE"))
@@ -479,7 +498,6 @@ picea <- picea %>%
 picea <- picea %>%
   mutate(DBH = as.numeric(DBH.23), 
          MCW = mapply(MCW, SPP = SPP, DBH = DBH))
-
 
 #-------------------------------------------------------------------------------
 #CCF 
@@ -502,7 +520,6 @@ picea <- picea %>%
 
 #picea <- picea %>%
   #mutate(CCF = (CA / CA.plot) * 10) #1/10 acre plots
-
 
 # mikes formula
 spruce.ccf <- picea%>%
@@ -717,9 +734,17 @@ d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
 mod3.1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE+SPP,
                  data=d.set,dist="negbin")
 summary(mod3.1)
-AIC(mod3.1,mod3)
+AIC(mod3.1)
 
 performance(mod3.1)
+
+predictions <- predict(mod3.1, type = "response")
+observed <- d.set$deductclass
+mb <- mean(observed - predictions)
+mab <- mean(abs(observed - predictions))
+mb
+mab
+
 # dang, that is good. 
 
 picea$fit.deduction <- ifelse(picea$SPP=="RS"|
@@ -785,7 +810,6 @@ plot(d.set$MeanWD,d.set$LAI)
 boxplot(LAI~CODE,data=d.set)
 
 # premer, end. 
-
 
 str(d.set)
 require(pscl)
@@ -886,8 +910,8 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #names(spruce.bal)
 #spruce.bal2 <- spruce.bal[c(1,2,3,72)]
 
-d.set <- dplyr::left_join(d.set,spruce.bal2)
-xyplot(HCB.23~HT.23|SPP,data=d.set)
+#d.set <- dplyr::left_join(d.set,spruce.bal2)
+#xyplot(HCB.23~HT.23|SPP,data=d.set)
 
 #hcb.mod <- lm(HCB.23 ~I(log(CCF)) + final.ht + bal + factor(SPP) + factor(CODE), data = d.set)
 #summary(hcb.mod)
@@ -902,7 +926,6 @@ xyplot(HCB.23~HT.23|SPP,data=d.set)
 
 #model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
           #random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
-
 
 hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set) #log final.ht or DBH.23 did not improve AIC
 summary(hcb.mod4)
@@ -926,12 +949,11 @@ MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
 # predict hcb.mod4 on all spruce, and join to picea df
-picea$hcb.fit <- ifelse(picea$SPP=="RS"|
-                          picea$SPP=="WS"|
-                          picea$SPP=="BS"|
-                          picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
-picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
-
+#picea$hcb.fit <- ifelse(picea$SPP=="RS"|
+                          #picea$SPP=="WS"|
+                          #picea$SPP=="BS"|
+                          #picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
+#picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 
 #now, for the model. 
 
@@ -959,9 +981,7 @@ picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 #plot(d.set$HCB.23,d.set$exp.fit)
 #abline(0,1)
 
-
 #xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
-
 
 # model2 is better
 #coefficients <- coef(model2)
@@ -988,7 +1008,6 @@ picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
   #ifelse(d.set$CODE == "N", B7, 0) +
   #ifelse(d.set$CODE == "NW", B8, 0) +
   #ifelse(d.set$CODE == "R", B9, 0)
-
 
 #c <- 1
 #k <- 1
@@ -1041,7 +1060,6 @@ cr.demog <- pa%>%
 
 COLORS = c("blue", "gold", "red", "green")
 
-
 xyplot(cr.points~prop|CODE,data=cr.demog,type=c("p","l"),
        group=SPP,auto.key=TRUE)
 # obviously the spruce only filter doesn't work.. oh well. 
@@ -1059,7 +1077,6 @@ ca$SPP <- factor(ca$SPP, levels = c("BS", "NS", "RS", "WS"))
 
 xyplot(prop~cr.points|CODE,data=ca,type=c("l"))
 
-
 ca.avg <- ca %>%
   group_by(CODE, SPP, prop) %>%
   summarise(cr.points = mean(cr.points, na.rm = TRUE), .groups = "drop")
@@ -1076,6 +1093,31 @@ xyplot(cr.points ~ prop | CODE,
        ylab = "Crown Points")
 
 write.csv(cr.demog,"Crown_point_summary.csv")
+
+library(dplyr)
+library(lattice)
+
+# Summarize the data (already done in your code)
+ca.avg <- ca %>%
+  group_by(CODE, SPP, prop) %>%
+  summarise(cr.points = mean(cr.points, na.rm = TRUE), .groups = "drop")
+
+ca.avg_smoothed <- ca.avg %>%
+  group_by(CODE, SPP) %>%
+  do({
+    smoothed <- smooth.spline(.$prop, .$cr.points, spar = 0.7)  
+    data.frame(prop = smoothed$x, cr.points = smoothed$y)
+  }) %>%
+  ungroup()
+
+# Plot the smoothed curve
+xyplot(cr.points ~ prop | CODE, 
+       data = ca.avg_smoothed, 
+       type = "l", 
+       group = SPP, 
+       auto.key = list(points = FALSE, lines = TRUE, columns = 1, title = "Species", space = "right"),
+       xlab = "Proportion", 
+       ylab = "Crown Points")
 
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
@@ -1157,23 +1199,24 @@ bmod <- lm(beta ~ SPP + CODE, data = beta.fit)
 summary(amod)
 summary(bmod)
 
-alpha.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) #just accounts for differences amongst CODEs 
-summary(alpha.glht)
+alpha.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) 
+summary(alpha.glht, p.adjust.method = "bonferroni")
 
 beta.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
-summary(beta.glht)
+summary(beta.glht, p.adjust.method = "bonferroni") 
 
-# test for differences amongst SPP in each CODE individually
+# Test for differences amongst SPP in each CODE individually
 
-#Shape
+# Shape
 amod <- lm(alpha ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
 alpha.glht <- glht(amod, linfct = mcp(SPP = "Tukey"))
-summary(alpha.glht)
+summary(alpha.glht, adjust = "bonferroni")
 
-#Scale
+
+# Scale
 bmod <- lm(beta ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
 beta.glht <- glht(bmod, linfct = mcp(SPP = "Tukey"))
-summary(beta.glht)
+summary(beta.glht, p.adjust.method = "bonferroni") 
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
@@ -1189,7 +1232,6 @@ plot.estimates <- picea %>%
             RD = mean(rd.2),
             .groups = 'drop')
 
-
 # calculate overyielding at plot level
 oy <- function(data) {
   results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
@@ -1197,7 +1239,7 @@ oy <- function(data) {
   for (i in 1:nrow(data)) {
     mixture <- as.character(data$CODE[i])  # make CODE a character
     
-    if (nchar(mixture) == 2) { # only calculate overyielding for mixtures
+    if (nchar(mixture) == 2) { 
       species1 <- substr(mixture, 1, 1)  
       species2 <- substr(mixture, 2, 2)  
       
@@ -1225,15 +1267,15 @@ avg.oy <- oy.results %>%
   group_by(Mixture) %>%
   summarise(
     avg.oy = mean(Overyielding, na.rm = TRUE),
-    se.oy = sd(Overyielding, na.rm = TRUE) / sqrt(n()),  # Standard Error
+    se.oy = sd(Overyielding, na.rm = TRUE) / sqrt(n()), 
     .groups = 'drop'
   )
 
 ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
-  geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  # Add error bars
+  geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  
   geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", y = NULL) +  # Remove y-axis title
+  labs(x = "Species Mixture", y = NULL) +  
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(breaks = c(1))
@@ -1249,15 +1291,15 @@ calculate_transgressive_overyielding <- function(data) {
       species1 <- substr(mixture, 1, 1)
       species2 <- substr(mixture, 2, 2)
       
-      volume1 <- data$total.vol[data$CODE == species1]  # Fix column name
-      volume2 <- data$total.vol[data$CODE == species2]  # Fix column name
+      volume1 <- data$total.vol[data$CODE == species1]  
+      volume2 <- data$total.vol[data$CODE == species2]  
       
-      mixture_volume <- data$total.vol[i]  # Fix column name
+      mixture_volume <- data$total.vol[i]  
       
       if (length(volume1) > 0 && length(volume2) > 0) {
-        max_volume <- max(c(volume1, volume2), na.rm = TRUE)  # Ensure valid max calculation
+        max_volume <- max(c(volume1, volume2), na.rm = TRUE)  
         
-        if (!is.na(max_volume) && max_volume > 0) {  # Prevent division by zero
+        if (!is.na(max_volume) && max_volume > 0) {  
           transgressive_overyielding <- mixture_volume / max_volume
           results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
         }
@@ -1267,7 +1309,6 @@ calculate_transgressive_overyielding <- function(data) {
   
   return(results)
 }
-
 
 toy_results <- calculate_transgressive_overyielding(plot.estimates)
 print(toy_results)  
@@ -1337,7 +1378,6 @@ picea.vol <- picea %>%
     mean.vol = mean(plot.vol, na.rm = TRUE),
     sd.vol = sd(plot.vol, na.rm = TRUE)
   )
-
 
 picea.vol <- picea.vol %>% #adjust the values for CODE "BR" since something weird was happening before, manually calculated
   mutate(
@@ -1489,7 +1529,6 @@ plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
 # Combine the plots
 #plot_bs + plot_rs + plot_ns + plot_ws + plot_layout(ncol = 2)
 
-
 #-------------------------------------------------------------------------------
 # ht dbh graphics by SPP in each mixture 
 #-------------------------------------------------------------------------------
@@ -1601,7 +1640,6 @@ plot.2
 
 #plot.2
 
-
 #-------------------------------------------------------------------------------
 # DBH distribution based on monculture vs. mixed Pretzsch and Biber 2016
 #-------------------------------------------------------------------------------
@@ -1635,9 +1673,9 @@ ggplot(spruce.dbh, aes(x = DBH.23, fill = stand_type, color = stand_type)) +
 
 
 spruce.dbh2 <- spruce.dbh %>%
-  filter(!(CODE == "BW" & SPP == "RS"),   # Remove SPP RS in CODE BW
-         !(CODE == "NR" & SPP == "BS"),   # Remove SPP BS in CODE NR
-         !(CODE == "RW" & SPP %in% c("NS", "BS")))  # Remove SPP NS & BS in CODE RW
+  filter(!(CODE == "BW" & SPP == "RS"),   
+         !(CODE == "NR" & SPP == "BS"),   
+         !(CODE == "RW" & SPP %in% c("NS", "BS")))  
 
 ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   geom_density(alpha = 0.5) +  
@@ -1650,7 +1688,7 @@ ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
   facet_wrap(~ CODE)
 
 ggplot(spruce.dbh2, aes(x = DBH.23, fill = SPP, color = SPP)) +
-  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
+  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) + 
   labs(x = "DBH (in)", y = "Trees per Acre", fill = "Species", color = "Species") + 
   scale_x_continuous(breaks = seq(0, max(spruce.filtered$DBH.23, na.rm = TRUE), by = 2),
                      expand = expansion(mult = c(0.05, 0.1))) +  
@@ -1672,28 +1710,59 @@ ggplot(spruce.filtered, aes(x = DBH.23, fill = SPP, color = SPP)) +
         legend.title = element_text(size = 10)) +  
   facet_wrap(~ CODE)
 
-# DBH x TPA all and mixtures (need to convert to metric)
-spruce.dbh.f <- spruce.dbh2 %>%
-  filter(!CODE %in% c("B", "N", "R", "W"))
+#convert to metric 
+spruce.dbh3 <- spruce.dbh2 %>% 
+  filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
 
-ggplot(spruce.dbh.f, aes(x = DBH.23, fill = SPP, color = SPP)) +
-  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
-  labs(x = "DBH (in)", y = "Trees per Acre", fill = "Species", color = "Species") + 
-  scale_x_continuous(breaks = seq(0, max(spruce.filtered$DBH.23, na.rm = TRUE), by = 2),
-                     expand = expansion(mult = c(0.05, 0.1))) +  
+ggplot(spruce.dbh3, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
+  geom_density(alpha = 0.5) +  
+  labs(x = "DBH (cm)", y = "Density") +  
   theme_minimal() +
-  theme(legend.position = "right",  
-        legend.title = element_text(size = 10)) +  
+ theme(legend.position = "top",
+        legend.title = element_blank()) +
   facet_wrap(~ CODE)
 
-#convert to metric 
-#ggplot(spruce2, aes(x = DBH.23 * 2.54, fill = SPP, color = SPP)) +
-  #geom_density(alpha = 0.5) +  
-  #labs(x = "DBH (cm)", y = "Density") +  # Update axis label to cm
-  #theme_minimal() +
-  #theme(legend.position = "top",
-        #legend.title = element_blank()) +
-  #facet_wrap(~ CODE)
+#DBHxTPA
+spruce.dbh2 %>%
+  mutate(DBH_cm = DBH * 2.54,  
+         DBH_class = cut(DBH_cm, breaks = seq(0, max(DBH_cm), by = 3), include.lowest = TRUE)) %>%  
+  filter(!is.na(DBH_class)) %>%  
+  group_by(CODE, DBH_class) %>%
+  summarise(count = n()) %>%
+  mutate(count = count * 10 * 2.47105) %>%  
+  ggplot(aes(x = DBH_class, y = count)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ CODE) +
+  labs(x = "DBH (cm)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+spruce.dbh2 %>%
+  filter(!CODE %in% c("B", "N", "W", "R")) %>%  
+  filter(!(CODE == "BN" & SPP == "WS")) %>%  
+  mutate(DBH_cm = DBH * 2.54,  
+         DBH_class = cut(DBH_cm, breaks = seq(0, max(DBH_cm), by = 3), include.lowest = TRUE)) %>%
+  filter(!is.na(DBH_class)) %>% 
+  group_by(CODE, SPP, DBH_class) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  mutate(count = count * 10 * 2.47105) %>% #10 for exp factor, 2.47 from ac to ha
+  ggplot(aes(x = DBH_class, y = count, fill = SPP)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ CODE) +
+  labs(x = "DBH (cm)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")
+
+spruce.dbh2 %>%
+  filter(!CODE %in% c("B", "N", "W", "R")) %>%  
+  filter(!(CODE == "BN" & SPP == "WS")) %>%  
+  mutate(DBH_cm = DBH * 2.54) %>%
+  filter(!is.na(DBH_cm)) %>%
+  ggplot(aes(x = DBH_cm, fill = SPP)) +
+  geom_histogram(binwidth = 3, aes(y = ..count.. * 10 * 2.47105), alpha = 0.4, position = "identity") +  
+  facet_wrap(~ CODE) +
+  labs(x = "DBH (cm)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")
 
 #-------------------------------------------------------------------------------
 # tree-level final.vol distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
@@ -1706,7 +1775,7 @@ spruce <- picea %>%
       TRUE ~ NA_character_
     )
   ) %>%
-  filter(!is.na(final.vol) & !is.na(stand_type))  # Remove rows with NA in volume or stand_type
+  filter(!is.na(final.vol) & !is.na(stand_type))
 
 ggplot(spruce, aes(x = final.vol, fill = stand_type, color = stand_type)) +
   geom_density(alpha = 0.5) +  # Density plot with transparency
@@ -1802,11 +1871,12 @@ ggplot(spruce2, aes(x = plot.vol, fill = SPP, color = SPP)) +
 #convert to metric 
 #ggplot(spruce2, aes(x = plot.vol * 0.070, fill = SPP, color = SPP)) +
   #geom_density(alpha = 0.5) +  
-  #labs(x = "Volume (m³/ha)", y = "Density") +  # Update axis label to metric
+  #labs(x = "Volume (m³/ha)", y = "Density") +
   #theme_minimal() +
   #theme(legend.position = "top",
         #legend.title = element_blank()) +
   #facet_wrap(~ CODE)
+
 #-------------------------------------------------------------------------------
 # final.ht distribution based on monculture vs. mixed (Pretzsch and Biber 2016)
 #-------------------------------------------------------------------------------
@@ -1845,30 +1915,60 @@ ggplot(spruce.ht2, aes(x = final.ht, fill = SPP, color = SPP)) +
         legend.title = element_blank()) +
   facet_wrap(~ CODE) #weibull looks good to fit these, if skewed consider a gamma or log-normal distribution
 
-
-# HT by TPA, need to convert all and mixtures to metric
-spruce.ht2.f <- spruce.ht2 %>%
-  filter(!CODE %in% c("B", "N", "R", "W"))
-
-ggplot(spruce.ht2.f, aes(x = final.ht, fill = SPP, color = SPP)) +
-  geom_density(aes(y = ..count..), adjust = 1, alpha = 0.3) +  # Smooth density line only
-  labs(x = "Height (ft)", y = "Trees per Acre", fill = "Species", color = "Species") + 
-  scale_x_continuous(breaks = seq(0, max(spruce.ht2$final.ht, na.rm = TRUE), by = 5),
-                     expand = expansion(mult = c(0.1, 0.1))) +  # Adjusted expansion factor
-  theme_minimal() +
-  theme(legend.position = "right",  
-        legend.title = element_text(size = 10)) +  
-  facet_wrap(~ CODE)
-
-
 #convert to metric
-#ggplot(spruce2, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
+#spruce.ht3 <- spruce.ht2 %>% 
+  #filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
+
+#ggplot(spruce.ht3, aes(x = final.ht * 0.3048, fill = SPP, color = SPP)) +
   #geom_density(alpha = 0.5) +  
-  #labs(x = "Height (m)", y = "Density") +  # Update axis label to meters
+  #labs(x = "Height (m)", y = "Density") +  
+  #scale_x_continuous(breaks = seq(0, max(spruce.ht2$final.ht * 0.3048, na.rm = TRUE), by = 2)) + 
   #theme_minimal() +
   #theme(legend.position = "top",
         #legend.title = element_blank()) +
   #facet_wrap(~ CODE)
+
+# HT by TPA, need to convert all and mixtures to metric
+spruce.ht2 %>%
+  mutate(HT.m = final.ht * .3048,  
+         HT.class = cut(HT.m, breaks = seq(0, max(HT.m), by = 1), include.lowest = TRUE)) %>%  
+  filter(!is.na(HT.class)) %>%  
+  group_by(CODE, HT.class) %>%
+  summarise(count = n()) %>%
+  mutate(count = count * 10 * 2.47105) %>%  
+  ggplot(aes(x = HT.class, y = count)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ CODE) +
+  labs(x = "Height (m)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+spruce.ht2 %>%
+  filter(!CODE %in% c("B", "N", "W", "R")) %>%  
+  filter(!(CODE == "BN" & SPP == "WS")) %>%  
+  mutate(HT.m = final.ht * .3048,  
+         HT.class = cut(HT.m, breaks = seq(0, max(HT.m), by = ), include.lowest = TRUE)) %>%
+  filter(!is.na(HT.class)) %>% 
+  group_by(CODE, SPP, HT.class) %>%
+  summarise(count = n(), .groups = 'drop') %>%
+  mutate(count = count * 10 * 2.47105) %>% #10 for exp factor, 2.47 from ac to ha
+  ggplot(aes(x = HT.class, y = count, fill = SPP)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  facet_wrap(~ CODE) +
+  labs(x = "Height (m)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")
+
+spruce.ht2 %>%
+  filter(!CODE %in% c("B", "N", "W", "R")) %>%  
+  filter(!(CODE == "BN" & SPP == "WS")) %>%  
+  mutate(HT.m = final.ht * .3408) %>%
+  filter(!is.na(HT.m)) %>%
+  ggplot(aes(x = HT.m, fill = SPP)) +
+  geom_histogram(binwidth = 1, aes(y = ..count.. * 10 * 2.47105), alpha = 0.4, position = "identity") +  
+  facet_wrap(~ CODE) +
+  labs(x = "Height (m)", y = "Trees per Hectare") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_fill_brewer(palette = "Set3")
 
 #-------------------------------------------------------------------------------
 # fitting Weibull distribution to DBH.23 distrubution
@@ -2062,7 +2162,6 @@ for (code in unique.code) {
   cat("\n\nTukey's HSD for Scale in CODE:", code, "\n")
   print(summary(scale_glht))
 }
-
 
 
 # [2] use 1-inch dbh classes and use this your response variable, fit a weibull or other distribution with nlme approach. 
