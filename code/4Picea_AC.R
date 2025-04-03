@@ -87,7 +87,6 @@ picea <- picea %>%
 
 plot(picea$bapa, picea$tpa)  # most plots are between 20 and 140 bapa
 
-
 ggplot(picea, aes(x = bapa, y = tpa, color = CODE)) +
   geom_point(alpha = 0.7) +  
   labs(x = "BAPA",
@@ -1092,33 +1091,85 @@ xyplot(cr.points ~ prop | CODE,
        xlab = "Proportion", 
        ylab = "Crown Points")
 
-write.csv(cr.demog,"Crown_point_summary.csv")
+#write.csv(cr.demog,"Crown_point_summary.csv")
 
-library(dplyr)
-library(lattice)
-
-# Summarize the data (already done in your code)
-ca.avg <- ca %>%
-  group_by(CODE, SPP, prop) %>%
-  summarise(cr.points = mean(cr.points, na.rm = TRUE), .groups = "drop")
-
-ca.avg_smoothed <- ca.avg %>%
+ca.avg.smooth <- ca.avg %>%
   group_by(CODE, SPP) %>%
   do({
-    smoothed <- smooth.spline(.$prop, .$cr.points, spar = 0.7)  
-    data.frame(prop = smoothed$x, cr.points = smoothed$y)
+    smoothed <- smooth.spline(.$prop, .$cr.points, spar = 0.7)
+    data.frame(prop = smoothed$x, cr.points = pmax(smoothed$y, 0))  # Ensures no negative values
   }) %>%
   ungroup()
 
-# Plot the smoothed curve
 xyplot(cr.points ~ prop | CODE, 
-       data = ca.avg_smoothed, 
+       data = ca.avg.smooth, 
        type = "l", 
        group = SPP, 
        auto.key = list(points = FALSE, lines = TRUE, columns = 1, title = "Species", space = "right"),
        xlab = "Proportion", 
        ylab = "Crown Points")
 
+# Area under the curve: to determine is stratification influences LAI or vol
+library(car)
+
+interval <- ca.avg.smooth %>%
+  group_by(CODE, SPP) %>%
+  summarise(
+    min_prop = round(min(prop, na.rm = TRUE), 1), 
+    max_prop = round(max(prop, na.rm = TRUE), 1), 
+    range_prop = round(max_prop - min_prop, 1),  # Compute and round range
+    .groups = "drop"
+  )
+interval
+
+#auc by each SPP in CODE
+auc.spp <- ca.avg.smooth %>%
+  group_by(CODE, SPP) %>%
+  summarise(auc = integrate(approxfun(prop, cr.points), min(prop), max(prop))$value, .groups = "drop")
+auc.spp
+
+# For significant mixtures (BN, NW, RW) auc was the sum of both SPP curves, for others the value is just the AUC for the dominant SPP 
+# Interval = the scale of for min-max of the prop range, used since AUC values are high
+strawberry <- data.frame(
+  CODE = c("BN", "NW", "RW", "BR", "BW", "NR"),
+  AUC = c(291, 371, 260, 281, 155, 230),
+  Interval = c(90, 90, 90, 90, 80, 90)
+) %>%
+  mutate(auc.adj = AUC / Interval)
+
+blueberry <- picea %>%
+  left_join(strawberry, by = "CODE") %>%
+  filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
+
+
+vol.m1 <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = blueberry)
+summary(vol.m1)
+AIC(vol.m1)
+
+
+cor(blueberry[, c("LAI", "roughness", "AUC")], use = "complete.obs")
+
+#I get the same AIC values for each model whether I use AUC or auc.adj
+
+vol.m2 <- lm(stand.vol ~ LAI + roughness + auc.adj + factor(CODE), data = blueberry)
+summary(vol.m2)
+AIC(vol.m2)
+vif.m2 <- vif(vol.m2)
+print(vif.m2)
+
+vol.m3 <- lm(stand.vol ~ I(log(LAI)) + I(log(roughness)) + auc.adj + factor(CODE), data = blueberry)
+summary(vol.m3)
+AIC(vol.m3)
+
+AIC(vol.m1, vol.m2, vol.m3)
+
+#singularity issue when fitted with factor(CODE)
+vol.m4 <- lme(stand.vol ~ log(LAI) + log(roughness) + auc.adj,
+              data = blueberry,
+              random = ~ 1 | BLOCK,
+              control = lmeControl(opt = "optim"))
+summary(vol.m4)
+AIC(vol.m3, vol.m4)
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
 library(fitdistrplus)
