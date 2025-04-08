@@ -1142,6 +1142,109 @@ blueberry <- picea %>%
   filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
 
 
+# we have pseudo rep since these are still at tree level
+blues <- blueberry%>%
+  group_by(BLOCK,PLOT,CODE)%>%
+  summarize(AUC=mean(AUC),
+            Interval=mean(Interval),
+            auc.adj = mean(auc.adj))
+
+plot.sums <-  picea%>%
+  mutate(ba = DBH.23^2*0.005454,
+         ef = 10,
+         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht))%>%
+  group_by(BLOCK,PLOT,CODE)%>%
+  summarize(bapa = sum(ba*ef),
+            tpa = sum(ef),
+            qmd = qmd(bapa,tpa),
+            rd=relative.density.index(bapa,qmd),
+            volume = sum(tree.vol*ef),
+            CCF=mean(CCF),
+            LAI=mean(LAI))
+
+bl.ch <- left_join(blues,plot.sums)
+bl.c <- left_join(bl.ch,site)
+head(bl.c)
+
+modv <- regsubsets(bapa~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+LAI+
+                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
+                   WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+                   data=bl.c)
+
+summary(modv)
+
+
+
+lm1 <- lm(volume~BS_Suitability+CCF+log(LAI),data=bl.c)
+plot(density((1/sqrt(bl.c$volume))))
+bl.c$vol.t <- 1/(sqrt(bl.c$volume))
+plot(density(bl.c$vol.t))
+
+lm2 <- lm(vol.t~BS_Suitability,data=bl.c)
+summary(lm2)
+
+lm3 <- lm(vol.t~factor(CODE),data=bl.c)
+AIC(lm2,lm3)
+# wow, that is crazy - I'll take the continuous variable please...
+
+lm4 <- lm(vol.t~BS_Suitability+CCF,data=bl.c)
+summary(lm4)
+AIC(lm2,lm4)
+
+lm5 <- lme(vol.t~BS_Suitability+CCF,data=bl.c,
+           random=~1|BLOCK)
+summary(lm5)
+
+
+AIC(lm5,lm4)
+
+
+
+
+
+
+
+AIC(lm1,lm2)
+
+
+lm3 <- 
+
+
+library(MASS)
+b <- boxcox(lm(volume ~ 1,data=bl.c))
+# Exact lambda
+lambda <- b$x[which.max(b$y)]
+lambda
+
+
+
+summary(lm1)
+plot(lm1)
+
+
+
+lm2 <- lm(volume~factor(CODE),data=bl.c)
+summary(lm2)
+
+AIC(lm1,lm2)
+
+
+
+xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
+
+require(devtools)
+install_github("ProcessMiner/nlcor")
+library(nlcor)
+
+c <- nlcor(bl.c$AUC,bl.c$LAI)
+
+
+
+
+
+
+
 vol.m1 <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = blueberry)
 summary(vol.m1)
 AIC(vol.m1)
@@ -1162,6 +1265,11 @@ summary(vol.m3)
 AIC(vol.m3)
 
 AIC(vol.m1, vol.m2, vol.m3)
+
+
+
+
+
 
 #singularity issue when fitted with factor(CODE)
 vol.m4 <- lme(stand.vol ~ log(LAI) + log(roughness) + auc.adj,
