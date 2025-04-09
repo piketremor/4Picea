@@ -1042,7 +1042,7 @@ nd2 <- left_join(nd,cpi.frame)
 head(nd2)
 
 names(spruce.only)
-al <- spruce.only[c(1:8,12,66,70,91)]
+al <- spruce.only[c(1:8,12,66,70,93)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
@@ -1141,7 +1141,7 @@ blueberry <- picea %>%
   left_join(strawberry, by = "CODE") %>%
   filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
 
-
+# volume predictions for mixtures only 
 # we have pseudo rep since these are still at tree level
 blues <- blueberry%>%
   group_by(BLOCK,PLOT,CODE)%>%
@@ -1166,7 +1166,8 @@ bl.ch <- left_join(blues,plot.sums)
 bl.c <- left_join(bl.ch,site)
 head(bl.c)
 
-modv <- regsubsets(bapa~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability+
+require(leaps)
+modv <- regsubsets(volume~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                    WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
@@ -1175,9 +1176,17 @@ modv <- regsubsets(bapa~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability
 summary(modv)
 
 
-
 lm1 <- lm(volume~BS_Suitability+CCF+log(LAI),data=bl.c)
+
+library(MASS)
+b <- boxcox(lm(volume ~ 1,data=bl.c))
+# Exact lambda
+lambda <- b$x[which.max(b$y)]
+lambda
+
 plot(density((1/sqrt(bl.c$volume))))
+plot(density((bl.c$volume)))
+
 bl.c$vol.t <- 1/(sqrt(bl.c$volume))
 plot(density(bl.c$vol.t))
 
@@ -1192,6 +1201,12 @@ lm4 <- lm(vol.t~BS_Suitability+CCF,data=bl.c)
 summary(lm4)
 AIC(lm2,lm4)
 
+
+bl.c$fit.vol<- predict(lm4,bl.c)
+bl.c$b.vol<-(1/bl.c$fit.vol^2) #backtransforms so you have normal volume  acreestimates 
+plot(bl.c$b.vol,bl.c$b.volume)  
+abline(0,1)
+
 lm5 <- lme(vol.t~BS_Suitability+CCF,data=bl.c,
            random=~1|BLOCK)
 summary(lm5)
@@ -1199,37 +1214,19 @@ summary(lm5)
 
 AIC(lm5,lm4)
 
-
-
-
-
-
-
-AIC(lm1,lm2)
-
-
-lm3 <- 
-
-
-library(MASS)
-b <- boxcox(lm(volume ~ 1,data=bl.c))
-# Exact lambda
-lambda <- b$x[which.max(b$y)]
-lambda
+lm6 <- lm(vol.t~BS_Suitability+CCF*AUC,data=bl.c)
+summary(lm6)
+AIC(lm4, lm6)
 
 
 
 summary(lm1)
 plot(lm1)
 
-
-
 lm2 <- lm(volume~factor(CODE),data=bl.c)
 summary(lm2)
 
 AIC(lm1,lm2)
-
-
 
 xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
 
@@ -1239,45 +1236,62 @@ library(nlcor)
 
 c <- nlcor(bl.c$AUC,bl.c$LAI)
 
+# volume predictions for all plots only 
+plot.summary <-  picea%>%
+  mutate(ba = DBH.23^2*0.005454,
+         ef = 10,
+         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht))%>%
+  group_by(BLOCK,PLOT,CODE)%>%
+  summarize(bapa = sum(ba*ef),
+            tpa = sum(ef),
+            qmd = qmd(bapa,tpa),
+            rd=relative.density.index(bapa,qmd),
+            volume = sum(tree.vol*ef),
+            CCF=mean(CCF),
+            LAI=mean(LAI))
+bl.t <- left_join(plot.summary,site)
+head(bl.t)
+bl.t <- bl.t %>%
+  filter(CODE != "C")
 
+require(leaps)
+modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+LAI+
+                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
+                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+                   data=bl.t)
 
+summary(modz)
 
+lm1 <- lm(volume~log(LAI)+SWI+tmean+ph,data=bl.t)
 
+library(MASS)
+b <- boxcox(lm(volume ~ 1,data=bl.t))
+# Exact lambda
+lambda <- b$x[which.max(b$y)]
+lambda
 
+plot(density((1/sqrt(bl.t$volume))))
+plot(density((bl.t$volume)))
 
-vol.m1 <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = blueberry)
-summary(vol.m1)
-AIC(vol.m1)
+bl.t$vol.t <- 1/(sqrt(bl.t$volume))
+plot(density(bl.t$vol.t))
 
+lm2 <- lm(vol.t ~ LAI, data = bl.t)
+summary(lm2)
 
-cor(blueberry[, c("LAI", "roughness", "AUC")], use = "complete.obs")
+lm3 <- lm(vol.t ~ factor(CODE), data = bl.t)
+summary(lm3)
 
-#I get the same AIC values for each model whether I use AUC or auc.adj
+AIC(lm2,lm3)
 
-vol.m2 <- lm(stand.vol ~ LAI + roughness + auc.adj + factor(CODE), data = blueberry)
-summary(vol.m2)
-AIC(vol.m2)
-vif.m2 <- vif(vol.m2)
-print(vif.m2)
+lm4 <- lm(vol.t~LAI + factor(CODE),data=bl.t)
+summary(lm4)
 
-vol.m3 <- lm(stand.vol ~ I(log(LAI)) + I(log(roughness)) + auc.adj + factor(CODE), data = blueberry)
-summary(vol.m3)
-AIC(vol.m3)
+lm5 <- lm(vol.t~LAI + SWI + tmean + tpi, data=bl.t)
 
-AIC(vol.m1, vol.m2, vol.m3)
+AIC(lm2,lm3, lm4,lm5)
 
-
-
-
-
-
-#singularity issue when fitted with factor(CODE)
-vol.m4 <- lme(stand.vol ~ log(LAI) + log(roughness) + auc.adj,
-              data = blueberry,
-              random = ~ 1 | BLOCK,
-              control = lmeControl(opt = "optim"))
-summary(vol.m4)
-AIC(vol.m3, vol.m4)
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
 library(fitdistrplus)
