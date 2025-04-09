@@ -1288,9 +1288,11 @@ AIC(lm2,lm3)
 lm4 <- lm(vol.t~LAI + factor(CODE),data=bl.t)
 summary(lm4)
 
+AIC(lm2,lm3, lm4)
+
 lm5 <- lm(vol.t~LAI + SWI + tmean + tpi, data=bl.t)
 
-AIC(lm2,lm3, lm4,lm5)
+AIC(lm2,lm3, lm4)
 
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
