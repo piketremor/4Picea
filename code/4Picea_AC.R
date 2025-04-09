@@ -831,7 +831,7 @@ plot(deductclass ~ SPP, data = d.set, subset = deductclass > 0,
 # let's try something.... 
 d.set$deductclass[is.na(d.set$ded)] <- 0
 d.set$d.dummy <- as.factor(ifelse(d.set$deductclass>0,1,0))
-vs2 <- VSURF(preds,d.set$d.dummy)
+#vs2 <- VSURF(preds,d.set$d.dummy)
 
 vs2$varselect.pred
 names(preds)
@@ -1254,6 +1254,8 @@ head(bl.t)
 bl.t <- bl.t %>%
   filter(CODE != "C")
 
+
+
 require(leaps)
 modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+
@@ -1273,6 +1275,46 @@ lambda
 
 plot(density((1/sqrt(bl.t$volume))))
 plot(density((bl.t$volume)))
+plot(density(bl.t$volume^1/2))
+plot(density(bl.t$volume^1/3))
+plot(density(log(bl.t$volume)))
+bl.t$log.vol <- log(bl.t$volume)
+
+modz <- regsubsets(log.vol~BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+LAI+CCF+
+                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
+                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+                   data=bl.t)
+summary(modz)
+
+full.m1 <- lm(log.vol~CCF*LAI+CODE,
+              data=bl.t)
+summary(full.m1)
+plot(full.m1)
+vif(full.m1)
+
+anova(full.m1)
+
+bl.t$fit.vol <- exp(predict(full.m1,bl.t))
+
+# so, final model is volume=exp(b0+b1*CCF+b2*LAI+b3*CCF*LAI+b4*CODEi)
+
+plot(bl.t$volume,bl.t$fit.vol,
+     xlim=c(0,4000),
+     ylim=c(0,4000))
+abline(0,1)
+
+library(multcomp)
+
+vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey")) 
+summary(vol.glht, p.adjust.method = "bonferroni")
+
+full.m2 <- lme(log.vol~CCF*LAI+CODE,
+               random=~1|BLOCK,
+               data=bl.t)
+
+AIC(full.m1,full.m2)
+
 
 bl.t$vol.t <- 1/(sqrt(bl.t$volume))
 plot(density(bl.t$vol.t))
