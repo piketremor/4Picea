@@ -948,11 +948,11 @@ MAB <- mean(abs(residuals))
 print(paste("Mean Absolute Bias (MAB):", MAB))
 
 # predict hcb.mod4 on all spruce, and join to picea df
-#picea$hcb.fit <- ifelse(picea$SPP=="RS"|
-                          #picea$SPP=="WS"|
-                          #picea$SPP=="BS"|
-                          #picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
-#picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
+picea$hcb.fit <- ifelse(picea$SPP=="RS"|
+                          picea$SPP=="WS"|
+                          picea$SPP=="BS"|
+                          picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
+picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 
 #now, for the model. 
 
@@ -1418,6 +1418,27 @@ p.vol.code <- ggplot(mcp, aes(x = factor(CODE), y = rdi)) +
 
 # Print the plot
 print(p.vol.code)
+
+
+#-------------------------------------------------------------------------------
+# MCP test for DBH.23, HT, HLC for a SPP in each CODE
+#-------------------------------------------------------------------------------
+library(ggplot2)
+library(dplyr)
+library(agricolae)
+library(tibble)
+
+spring <- picea %>% 
+  filter(SPP == "WS", CODE %in% c("W", "BW", "NW", "RW"))
+
+aov <- aov(final.hcb ~ CODE, data = spring)
+tukey <- HSD.test(aov, "CODE", group = TRUE)
+tukey.results <- tukey$groups %>%
+  as.data.frame() %>%
+  rownames_to_column("CODE") %>%  
+  rename(mean.hcb = final.hcb)
+print(tukey.results)
+
 
 #-------------------------------------------------------------------------------
 # bar chart of plot volume by mixture separated by each SPP in the mixture
