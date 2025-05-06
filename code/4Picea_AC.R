@@ -23,8 +23,15 @@ picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 site <- read.csv("4Picea_30m.csv")
 
+head(picea)
+names(picea)
 
-#min(site$elevation, na.rm = TRUE)  # Minimum elevation
+
+
+
+
+
+#min(spicea#min(site$elevation, na.rm = TRUE)  # Minimum elevation
 #mean(site$elevation, na.rm = TRUE) # Mean elevation
 #max(site$elevation, na.rm = TRUE)
 #-------------------------------------------------------------------------------
@@ -446,6 +453,18 @@ xyplot(final.ht ~ DBH.23 | SPP,
 #picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
 #xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio)
 #xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
+
+require(devtools)
+#devtools::install("C:/Users/michael.premer/Documents/GitHub/GreenTimbMerch")
+require(GreenTimbMerch)
+
+picea$dbh.cm <- picea$DBH.23*2.54
+picea$ht.m <- picea$ht.fit/3.28
+spruce <- dplyr::filter(picea,SPP=="NS"|SPP=="WS"|SPP=="RS"|SPP=="BS")
+
+spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht.m,
+                            Planted=TRUE)
+
 
 #-------------------------------------------------------------------------------
 #basal area larger (bal) - (tree level)
