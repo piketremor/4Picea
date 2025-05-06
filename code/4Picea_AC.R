@@ -43,6 +43,9 @@ picea$DBH.23[is.na(picea$DBH.23)] <- 0
 picea$HT.23 <- as.numeric(picea$HT.23)
 picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 
+require(dplyr)
+require(nlme)
+require(tidyr)
 #-------------------------------------------------------------------------------
 #calculate the proportion of each species by plot
 #-------------------------------------------------------------------------------
@@ -365,7 +368,7 @@ picea <- picea %>%
 # Relative density index - (plot level)
 #-------------------------------------------------------------------------------
 spruce.rd <- picea %>%
-  mutate(rdi = mapply(relative.density.index, bapa = bapa, qmd = qmd))
+  mutate(rdi = mapply(relative.density.index, bapa, qmd))
 
 spruce.rd_summary <- spruce.rd %>%
   group_by(BLOCK, PLOT) %>%
@@ -584,7 +587,7 @@ nd2 <- left_join(nd,cpi.frame)
 head(nd2)
 
 names(spruce.only)
-al <- spruce.only[c(1:8,12,66,70,93)]
+al <- spruce.only[c(1:8,12,66:80)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
@@ -697,16 +700,17 @@ blues <- blueberry%>%
 plot.sums <-  picea%>%
   mutate(ba = DBH.23^2*0.005454,
          ef = 10,
-         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht))%>%
+         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht),
+         c.area = (MCW/2)^2*pi)%>%
   group_by(BLOCK,PLOT,CODE)%>%
   summarize(bapa = sum(ba*ef),
             tpa = sum(ef),
             qmd = qmd(bapa,tpa),
             rd=relative.density.index(bapa,qmd),
             volume = sum(tree.vol*ef),
-            CCF=mean(CCF),
+            CCF=(sum(c.area*ef)/43560)*100,
             LAI=mean(LAI))
-
+head(plot.sums)
 bl.ch <- left_join(blues,plot.sums)
 bl.c <- left_join(bl.ch,site)
 head(bl.c)
@@ -783,22 +787,26 @@ c <- nlcor(bl.c$AUC,bl.c$LAI)
 #-------------------------------------------------------------------------------
 # Volume predictions for all treatments
 #-------------------------------------------------------------------------------
+
 plot.summary <- spruce %>%
   mutate(
     ba = DBH.23^2 * 0.005454,  
-    ef = 10                   
-  ) %>%
+    ef = 10,
+    c.area = (MCW/2)^2*pi,
+    ht.m = ht.fit/3.28,
+    dbh.cm = DBH.23*2.54)%>%
   group_by(BLOCK, PLOT, CODE) %>%
   summarize(
-    bapa = sum(ba * ef),                           
-    tpa = sum(ef),                                
-    qmd = qmd(bapa, tpa),                          
+    bapa = sum(ba * ef)/4.356,                           
+    tpa = sum(ef)*2.47,                                
+    qmd = qmd(bapa, tpa)*2.54,                          
     rd = relative.density.index(bapa, qmd),        
-    volume = mean(final.vol, na.rm = TRUE),        
-    CCF = mean(CCF, na.rm = TRUE),                 
-    LAI = mean(LAI, na.rm = TRUE),                 
-    .groups = "drop"
-  )
+    volume = sum(new.vol.m3*ef*2.47, na.rm = TRUE),        
+    CCF = (sum(c.area*ef, na.rm = TRUE)/43560)*100,                 
+    LAI = mean(LAI, na.rm = TRUE))
+
+head(plot.summary)
+
 
 bl.t <- left_join(plot.summary,site)
 head(bl.t)
@@ -816,7 +824,7 @@ modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
 summary(modz)
 
 #just log(LAI) was significant
-lm1 <- lm(volume~log(LAI)+SWI+tmean+ph,data=bl.t)
+lm1 <- lm(volume~log(LAI)+RS_Suitability+tmean+ph,data=bl.t)
 summary(lm1)
 
 library(MASS)
@@ -840,7 +848,7 @@ modz <- regsubsets(log.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability
 summary(modz)
 #bapa + tpa + qmd + rd + CCF
 
-full.m1 <- lm(log.vol~bapa+qmd+rd+log(LAI), data=bl.t) #LAI was significant prior to additional of structural and density attributes
+full.m1 <- lm(log.vol~bapa+qmd+rd+log(LAI)+aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
 require(car)
 vif(full.m1)
@@ -849,11 +857,49 @@ AIC(full.m1)
 full.m3 <- lm(log.vol~rd+qmd+LAI+CODE, data=bl.t)
 vif(full.m3)
 summary(full.m3)
+
 AIC(full.m3)
+
+
 #should i remove LAI since not significant anymore with density attributes?
 
 full.m4 <- lm(log.vol~rd+qmd+CODE, data=bl.t)
 summary(full.m4)
+
+mm <- lm(log.vol~rd+aspect+CODE,
+         data=bl.t)
+summary(mm)
+#plot(mm)
+performance(mm)
+
+mmt <- lm(log.vol~rd*aspect+CODE+qmd+tpa,
+          data=bl.t)
+
+AIC(mm,mmt)
+vif(mmt)
+# tpa is violating it, keep RD and you are good. 
+vif(mm)
+
+
+
+# pretty gosh darn good. 
+mmr <- lme(log.vol~rd*aspect+CODE,
+           random=~1|BLOCK,
+           data=bl.t)
+summary(mmr)
+
+AIC(mm,mmr)
+
+# mm is the final model. 
+
+coef(mm)
+bl.t$new.fit.vol <- exp(predict(mm,bl.t))
+plot(bl.t$volume,bl.t$new.fit.vol)
+abline(0,1)
+
+
+
+AIC(full.m4,mm)
 
 #this is the original model prior to revisions
 full.m5 <- lm(log.vol~CCF*LAI+CODE,
