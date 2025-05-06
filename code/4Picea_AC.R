@@ -650,20 +650,7 @@ p.vol
 #calculate volume at plot level
 picea <- picea %>%
   group_by(BLOCK, PLOT) %>%
-  mutate(stand.vol = sum(vol, na.rm = TRUE))
-
-# predict vol from LAI? roughness?
-vol <- lm(stand.vol ~ LAI + roughness + factor(CODE), data = picea)
-summary(vol)
-AIC(vol)
-
-vol2 <- lm(stand.vol ~ I(log(LAI)) + I(log(roughness)) + factor(CODE), data = picea)
-summary(vol2)
-AIC(vol2)
-
-vol3 <- lm(stand.vol ~ roughness + I(log(LAI)) + factor(CODE), data = picea)
-summary(vol3)
-AIC(vol3)
+  mutate(stand.vol = sum(vol, na.rm = TRUE) * 10)
 
 #plot(vol)
 
@@ -761,7 +748,9 @@ picea$final.vol <- picea$vol-picea$adj.vol
 #calclate plot level vol 
 picea <- picea %>%
   group_by(BLOCK, PLOT) %>%
-  mutate(plot.vol = sum(final.vol, na.rm = TRUE))
+  mutate(plot.vol = sum(final.vol, na.rm = TRUE),
+         plot.vol = plot.vol * 10)
+
 
 picea.2 <- picea %>% filter(CODE != "C")
 p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol)) +
@@ -771,17 +760,7 @@ p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol)) +
   theme_minimal(base_size = 14) 
 print(p.vol.code)
 
-#convert to metric 
-#picea.2 <- picea.2 %>%
-  #mutate(plot.vol_m3ha = plot.vol * 0.070)
-
-#p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol_m3ha)) +
-  #geom_boxplot() +
-  #ylab("Volume (m³/ha)") +
-  #xlab("Species Mixture") +
-  #theme_minimal(base_size = 14) 
-
-#print(p.vol.code)
+library(dplyr)
 
 # for fun, looking at LAI
 plot(d.set$wsi,d.set$LAI)
@@ -1101,13 +1080,13 @@ ca.avg.smooth <- ca.avg %>%
   }) %>%
   ungroup()
 
-xyplot(cr.points ~ prop | CODE, 
+xyplot(prop~cr.points | CODE, 
        data = ca.avg.smooth, 
        type = "l", 
        group = SPP, 
        auto.key = list(points = FALSE, lines = TRUE, columns = 1, title = "Species", space = "right"),
-       xlab = "Proportion", 
-       ylab = "Crown Points")
+       xlab = "Crown Points", 
+       ylab = "Proportion")
 
 # Area under the curve: to determine is stratification influences LAI or vol
 library(car)
@@ -1117,7 +1096,7 @@ interval <- ca.avg.smooth %>%
   summarise(
     min_prop = round(min(prop, na.rm = TRUE), 1), 
     max_prop = round(max(prop, na.rm = TRUE), 1), 
-    range_prop = round(max_prop - min_prop, 1),  # Compute and round range
+    range_prop = round(max_prop - min_prop, 1),  
     .groups = "drop"
   )
 interval
@@ -1168,7 +1147,7 @@ head(bl.c)
 
 require(leaps)
 modv <- regsubsets(volume~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+LAI+
+                     tri+tpi+roughness+SWI+LAI+CCF+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                    WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
                    data=bl.c)
@@ -1197,7 +1176,7 @@ lm3 <- lm(vol.t~factor(CODE),data=bl.c)
 AIC(lm2,lm3)
 # wow, that is crazy - I'll take the continuous variable please...
 
-lm4 <- lm(vol.t~BS_Suitability+CCF,data=bl.c)
+lm4 <- lm(vol.t~BS_Suitability+CCF,data=bl.c) #best model
 summary(lm4)
 AIC(lm2,lm4)
 
@@ -1255,7 +1234,6 @@ bl.t <- bl.t %>%
   filter(CODE != "C")
 
 
-
 require(leaps)
 modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+
@@ -1295,9 +1273,19 @@ vif(full.m1)
 
 anova(full.m1)
 
-bl.t$fit.vol <- exp(predict(full.m1,bl.t))
+#back transform log(vol) and predict on dataset
+bl.t$fit.vol <- exp(predict(full.m1,bl.t)) 
 
-# so, final model is volume=exp(b0+b1*CCF+b2*LAI+b3*CCF*LAI+b4*CODEi)
+bacon <- bl.t %>%
+  group_by(CODE) %>%
+  summarize(
+    mean_fit.vol = mean(fit.vol, na.rm = TRUE),
+    sd_fit.vol = sd(fit.vol, na.rm = TRUE)
+  )
+
+View(bacon)
+
+# so, final model is volume=exp(b0+b1*CCF+b2*LAI+b3*CCF*LAI+b4*CODE)
 
 plot(bl.t$volume,bl.t$fit.vol,
      xlim=c(0,4000),
@@ -1308,6 +1296,7 @@ library(multcomp)
 
 vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey")) 
 summary(vol.glht, p.adjust.method = "bonferroni")
+cld(vol.glht, level = 0.05, decreasing = TRUE)  
 
 full.m2 <- lme(log.vol~CCF*LAI+CODE,
                random=~1|BLOCK,
@@ -1315,26 +1304,6 @@ full.m2 <- lme(log.vol~CCF*LAI+CODE,
 
 AIC(full.m1,full.m2)
 
-
-bl.t$vol.t <- 1/(sqrt(bl.t$volume))
-plot(density(bl.t$vol.t))
-
-lm2 <- lm(vol.t ~ LAI, data = bl.t)
-summary(lm2)
-
-lm3 <- lm(vol.t ~ factor(CODE), data = bl.t)
-summary(lm3)
-
-AIC(lm2,lm3)
-
-lm4 <- lm(vol.t~LAI + factor(CODE),data=bl.t)
-summary(lm4)
-
-AIC(lm2,lm3, lm4)
-
-lm5 <- lm(vol.t~LAI + SWI + tmean + tpi, data=bl.t)
-
-AIC(lm2,lm3, lm4)
 
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
@@ -1442,7 +1411,7 @@ plot.estimates <- picea %>%
   mutate(qmd.2 = qmd(bapa,tpa),
          rd.2 = bapa/sqrt(qmd.2)) %>%
   group_by(BLOCK, PLOT, CODE) %>%  
-  summarise(total.vol = sum(final.vol, na.rm = TRUE),  
+  summarise(total.vol = sum(stand.vol, na.rm = TRUE),  
             BAPA = mean(bapa),
             TPA = mean(tpa),
             QMD = mean(qmd.2),
@@ -1450,6 +1419,7 @@ plot.estimates <- picea %>%
             .groups = 'drop')
 
 # calculate overyielding at plot level
+# deduction volume
 oy <- function(data) {
   results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
   
@@ -1487,6 +1457,8 @@ avg.oy <- oy.results %>%
     se.oy = sd(Overyielding, na.rm = TRUE) / sqrt(n()), 
     .groups = 'drop'
   )
+print(avg.oy)
+
 
 ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
@@ -1561,30 +1533,18 @@ library(tibble)
 
 mcp <- picea %>% filter(CODE != "C")
 
-aov <- aov(rdi ~ CODE, data = mcp)
+bl.t <- as.data.frame(bl.t)
 
-tukey <- HSD.test(aov, "CODE", group = TRUE)
+aov <- aov(fit.vol ~ CODE, data = bl.t)
+summary(aov)
+tukey <-aovtukey <- HSD.test(aov, "CODE", group = TRUE)
 
 tukey.results <- tukey$groups %>%
   as.data.frame() %>%
   rownames_to_column("CODE") %>%  
-  rename(mean_rdi = rdi)
+  rename(mean_vol = fit.vol)
 
 print(tukey.results)
-
-max_rdi <- max(mcp$rdi, na.rm = TRUE)
-
-p.vol.code <- ggplot(mcp, aes(x = factor(CODE), y = rdi)) +
-  geom_boxplot(fill = "grey80", color = "black") +  
-  geom_text(data = tukey.results, aes(x = CODE, y = max_rdi * 1.05, label = groups), 
-            size = 5, fontface = "bold") +  
-  ylab("Relative Density Index (%)") +
-  xlab("Species Mixture") +
-  theme_minimal(base_size = 14)
-
-# Print the plot
-print(p.vol.code)
-
 
 #-------------------------------------------------------------------------------
 # MCP test for DBH.23, HT, HLC for a SPP in each CODE
