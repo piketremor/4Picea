@@ -797,25 +797,26 @@ plot.summary <- spruce %>%
     dbh.cm = DBH.23*2.54)%>%
   group_by(BLOCK, PLOT, CODE) %>%
   summarize(
-    bapa = sum(ba * ef)/4.356,                           
-    tpa = sum(ef)*2.47,                                
-    qmd = qmd(bapa, tpa)*2.54,                          
+    bapa = sum(ba * ef),                           
+    tpa = sum(ef),                                
+    qmd = qmd(bapa, tpa),                          
     rd = relative.density.index(bapa, qmd),        
-    volume = sum(new.vol.m3*ef*2.47, na.rm = TRUE),        
+    volume.ha = sum(new.vol.m3*ef*2.47, na.rm = TRUE),        
     CCF = (sum(c.area*ef, na.rm = TRUE)/43560)*100,                 
     LAI = mean(LAI, na.rm = TRUE))
 
 head(plot.summary)
-
-
-bl.t <- left_join(plot.summary,site)
+bl.t <- plot.summary%>%
+  left_join(.,site)%>%
+  mutate(baph = bapa/4.356,
+         tph = tpa*2.47)
 head(bl.t)
 bl.t <- bl.t %>%
   filter(CODE != "C")
 names(bl.t)
 
 require(leaps)
-modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
+modz <- regsubsets(volume.ha~BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                      WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
@@ -824,35 +825,80 @@ modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
 summary(modz)
 
 #just log(LAI) was significant
-lm1 <- lm(volume~log(LAI)+RS_Suitability+tmean+ph,data=bl.t)
+lm1 <- lm(volume.ha~log(LAI)+RS_Suitability+tmean+ph,data=bl.t)
 summary(lm1)
 
 library(MASS)
-b <- boxcox(lm(volume ~ 1,data=bl.t))
+b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
 # Exact lambda
 lambda <- b$x[which.max(b$y)]
 lambda
 
 plot(density((1/sqrt(bl.t$volume))))
-plot(density((bl.t$volume)))
+plot(density((bl.t$volume.ha)))
+plot(density(sqrt(bl.t$volume.ha)))
+plot(density(log(bl.t$volume.ha)))
+
+
 plot(density(bl.t$volume^1/2))
 plot(density(bl.t$volume^1/3))
 plot(density(log(bl.t$volume)))
-bl.t$log.vol <- log(bl.t$volume)
+bl.t$sq.vol <- log(bl.t$volume.ha)
 
-modz <- regsubsets(log.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+
+
+modz <- regsubsets(sq.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                      WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
                    data=bl.t)
 summary(modz)
+
+modz2 <- regsubsets(sq.vol~CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+
+                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
+                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+                   data=bl.t)
+summary(modz2)
+
 #bapa + tpa + qmd + rd + CCF
 
-full.m1 <- lm(log.vol~bapa+qmd+rd+log(LAI)+aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
+
+full.m1 <- lm(sq.vol~rd+CODE*aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
 require(car)
 vif(full.m1)
 AIC(full.m1)
+
+full.mm <- lme(sq.vol~rd+CODE*aspect,data=bl.t,
+               random=~1|BLOCK,
+               na.action="na.omit")
+AIC(full.mm,full.m1)
+
+
+library(ggplot2)
+library(ggeffects)
+mydf2 <- ggpredict(full.m1,terms=c("rd","CODE","aspect"))
+
+
+#png("~/Desktop/SMC_Sinuosity_Model_Output.png",units='in',height=5.5,width=14,res=1000)
+#theme_set(theme_bw(16))
+
+library(ggplot2)
+ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
+  geom_line(aes(linetype=group,color=group),size=1)+
+  #labs(x="Tree height (m)",y="Probabilty of sinuosity (%)")+
+  #ylim(0,55)+
+  #xlim(4,6)+
+  facet_wrap(~facet)+
+  theme_bw(18) 
+  #theme(legend.position="none")
+  #scale_y_continuous(trans="sq")
+  #scale_color_manual(values=c('gray0','gray70','gray40'))+
+  #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
+
+
+
 
 full.m3 <- lm(log.vol~rd+qmd+LAI+CODE, data=bl.t)
 vif(full.m3)
