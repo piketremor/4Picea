@@ -605,8 +605,8 @@ al <- spruce.only[c(1:8,12,66:80,87)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
-pa$top.prop <- (pa$final.ht-pa$Low)/(pa$Top-pa$Low)
-pa$bot.prop <- (pa$fit.hcb-pa$Low)/(pa$Top-pa$Low)
+pa$top.prop <- pa$final.ht/pa$Top
+pa$bot.prop <- pa$fit.hcb/pa$Top
 pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
 head(pa)
 xyplot(crown.point~DBH.23|SPP,data=pa)
@@ -792,11 +792,11 @@ AIC(lm1,lm2)
 
 xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
 
-#require(devtools)
-#install_github("ProcessMiner/nlcor")
-#library(nlcor)
+require(devtools)
+install_github("ProcessMiner/nlcor")
+library(nlcor)
 
-#c <- nlcor(bl.c$AUC,bl.c$LAI)
+c <- nlcor(bl.c$AUC,bl.c$LAI)
 
 #-------------------------------------------------------------------------------
 # Volume predictions for all treatments
@@ -870,6 +870,7 @@ summary(modz2)
 
 full.m1 <- lm(sq.vol~rd+CODE*aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
+performance(full.m1)
 require(car)
 vif(full.m1)
 AIC(full.m1)
@@ -893,10 +894,11 @@ vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey"))
 summary(vol.glht, p.adjust.method = "bonferroni")
 cld(vol.glht, level = 0.05, decreasing = TRUE)  
 
+
+# volume is transformed (sqrt)
 library(ggplot2)
 library(ggeffects)
 mydf2 <- ggpredict(full.m1,terms=c("rd","CODE","aspect"))
-
 
 #png("~/Desktop/SMC_Sinuosity_Model_Output.png",units='in',height=5.5,width=14,res=1000)
 #theme_set(theme_bw(16))
@@ -913,6 +915,30 @@ ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
   #scale_y_continuous(trans="sq")
   #scale_color_manual(values=c('gray0','gray70','gray40'))+
   #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
+
+#back transform volume
+mydf2 <- ggpredict(full.m1, terms = c("rd", "CODE", "aspect"))
+
+# Back-transform from square root
+mydf2$predicted <- mydf2$predicted^2
+mydf2$conf.low <- mydf2$conf.low^2
+mydf2$conf.high <- mydf2$conf.high^2
+
+ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
+  geom_line(aes(linetype = group, color = group), size = 1) +
+  facet_wrap(~facet) +
+  ggtitle(expression(paste("Aspect (", degree, ")"))) +
+  labs(
+    x = "Relative Density (%)",
+    y = expression(paste("Volume (", m^3, " ", ha^-1, ")")),
+    colour = "Treatment",
+    linetype = "Treatment"
+  ) +
+  theme_bw(18) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
 library(fitdistrplus)
