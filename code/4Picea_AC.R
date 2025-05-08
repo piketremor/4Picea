@@ -601,12 +601,12 @@ nd2 <- left_join(nd,cpi.frame)
 head(nd2)
 
 names(spruce.only)
-al <- spruce.only[c(1:8,12,66:80)]
+al <- spruce.only[c(1:8,12,66:80,87)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
 pa$top.prop <- pa$final.ht/pa$Top
-pa$bot.prop <- pa$fit.hcb/pa$Top
+pa$bot.prop <- (pa$fit.hcb-pa$Low)/pa$Top
 pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
 head(pa)
 xyplot(crown.point~DBH.23|SPP,data=pa)
@@ -792,11 +792,11 @@ AIC(lm1,lm2)
 
 xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
 
-require(devtools)
-install_github("ProcessMiner/nlcor")
-library(nlcor)
+#require(devtools)
+#install_github("ProcessMiner/nlcor")
+#library(nlcor)
 
-c <- nlcor(bl.c$AUC,bl.c$LAI)
+#c <- nlcor(bl.c$AUC,bl.c$LAI)
 
 #-------------------------------------------------------------------------------
 # Volume predictions for all treatments
