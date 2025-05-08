@@ -606,7 +606,7 @@ head(al)
 pa <- left_join(nd2,al)
 head(pa)
 pa$top.prop <- pa$final.ht/pa$Top
-pa$bot.prop <- (pa$fit.hcb-pa$Low)/pa$Top
+pa$bot.prop <- (pa$fit.hcb-pa$Low)/(pa$Top-pa$Low)
 pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
 head(pa)
 xyplot(crown.point~DBH.23|SPP,data=pa)
