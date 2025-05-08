@@ -434,10 +434,11 @@ spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht
                             Planted=TRUE)
 #convert to m3/ha
 spruce <- spruce %>%
-  group_by(BLOCK, PLOT) %>%
+  group_by(BLOCK,PLOT) %>%
   mutate(
     p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
   )
+
 
 #convert to ft3/ac
 spruce <- spruce %>%
@@ -516,6 +517,19 @@ spruce$fit.deduct.class[spruce$fit.deduct.class>1] <- 1
 spruce$adj.vol <- spruce$p.vol.ac*spruce$fit.deduct.class
 plot(spruce$p.vol.ac,spruce$adj.vol,ylim=c(0,2000),xlim=c(0,2000))
 spruce$final.vol <- spruce$p.vol.ac-spruce$adj.vol
+
+#convert final.vol to m3/ha
+spruce <- spruce %>%
+  mutate(final.vol.ha = final.vol * 0.0698)
+
+#needed to average it since orginally calculate at tree-level
+final.vol.ha <- spruce %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(final.vol.ha.avg = mean(final.vol.ha, na.rm = TRUE),  
+            .groups = 'drop')
+
+spruce <- spruce %>%
+  left_join(final.vol.ha, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
 # HCB Model
@@ -787,7 +801,6 @@ c <- nlcor(bl.c$AUC,bl.c$LAI)
 #-------------------------------------------------------------------------------
 # Volume predictions for all treatments
 #-------------------------------------------------------------------------------
-
 plot.summary <- spruce %>%
   mutate(
     ba = DBH.23^2 * 0.005454,  
@@ -806,13 +819,16 @@ plot.summary <- spruce %>%
     LAI = mean(LAI, na.rm = TRUE))
 
 head(plot.summary)
+
 bl.t <- plot.summary%>%
   left_join(.,site)%>%
   mutate(baph = bapa/4.356,
          tph = tpa*2.47)
 head(bl.t)
+
 bl.t <- bl.t %>%
   filter(CODE != "C")
+
 names(bl.t)
 
 require(leaps)
@@ -824,28 +840,17 @@ modz <- regsubsets(volume.ha~BS_Suitability+WS_Suitability+RS_Suitability+
 
 summary(modz)
 
-#just log(LAI) was significant
-lm1 <- lm(volume.ha~log(LAI)+RS_Suitability+tmean+ph,data=bl.t)
-summary(lm1)
-
 library(MASS)
 b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
 # Exact lambda
 lambda <- b$x[which.max(b$y)]
 lambda
 
-plot(density((1/sqrt(bl.t$volume))))
 plot(density((bl.t$volume.ha)))
 plot(density(sqrt(bl.t$volume.ha)))
 plot(density(log(bl.t$volume.ha)))
 
-
-plot(density(bl.t$volume^1/2))
-plot(density(bl.t$volume^1/3))
-plot(density(log(bl.t$volume)))
-bl.t$sq.vol <- log(bl.t$volume.ha)
-
-
+bl.t$sq.vol <- sqrt(bl.t$volume.ha)
 
 modz <- regsubsets(sq.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+
@@ -863,7 +868,6 @@ summary(modz2)
 
 #bapa + tpa + qmd + rd + CCF
 
-
 full.m1 <- lm(sq.vol~rd+CODE*aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
 require(car)
@@ -875,6 +879,19 @@ full.mm <- lme(sq.vol~rd+CODE*aspect,data=bl.t,
                na.action="na.omit")
 AIC(full.mm,full.m1)
 
+# full.m1 is the final model. 
+
+#fit 
+bl.t$new.fit.vol <- predict(full.m1, bl.t)
+bl.t$new.fit.vol <- bl.t$new.fit.vol^2  #back transform sqrt(vol) and predict on dataset
+view(bl.t)
+
+
+library(multcomp)
+
+vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey")) 
+summary(vol.glht, p.adjust.method = "bonferroni")
+cld(vol.glht, level = 0.05, decreasing = TRUE)  
 
 library(ggplot2)
 library(ggeffects)
@@ -896,100 +913,6 @@ ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
   #scale_y_continuous(trans="sq")
   #scale_color_manual(values=c('gray0','gray70','gray40'))+
   #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
-
-
-
-
-full.m3 <- lm(log.vol~rd+qmd+LAI+CODE, data=bl.t)
-vif(full.m3)
-summary(full.m3)
-
-AIC(full.m3)
-
-
-#should i remove LAI since not significant anymore with density attributes?
-
-full.m4 <- lm(log.vol~rd+qmd+CODE, data=bl.t)
-summary(full.m4)
-
-mm <- lm(log.vol~rd+aspect+CODE,
-         data=bl.t)
-summary(mm)
-#plot(mm)
-performance(mm)
-
-mmt <- lm(log.vol~rd*aspect+CODE+qmd+tpa,
-          data=bl.t)
-
-AIC(mm,mmt)
-vif(mmt)
-# tpa is violating it, keep RD and you are good. 
-vif(mm)
-
-
-
-# pretty gosh darn good. 
-mmr <- lme(log.vol~rd*aspect+CODE,
-           random=~1|BLOCK,
-           data=bl.t)
-summary(mmr)
-
-AIC(mm,mmr)
-
-# mm is the final model. 
-
-coef(mm)
-bl.t$new.fit.vol <- exp(predict(mm,bl.t))
-plot(bl.t$volume,bl.t$new.fit.vol)
-abline(0,1)
-
-
-
-AIC(full.m4,mm)
-
-#this is the original model prior to revisions
-full.m5 <- lm(log.vol~CCF*LAI+CODE,
-              data=bl.t)
-summary(full.m5)
-plot(full.m5)
-vif(full.m5)
-
-anova(full.m1)
-
-AIC(full.m1, full.m3, full.m4, full.m5)
-
-#back transform log(vol) and predict on dataset
-bl.t$fit.vol <- exp(predict(full.m1,bl.t)) 
-
-bacon <- bl.t %>%
-  group_by(CODE) %>%
-  summarize(
-    mean_fit.vol = mean(fit.vol, na.rm = TRUE),
-    sd_fit.vol = sd(fit.vol, na.rm = TRUE)
-  )
-
-View(bacon)
-
-# so, final model is volume=exp(b0+b1*CCF+b2*LAI+b3*CCF*LAI+b4*CODE)
-
-plot(bl.t$volume,bl.t$fit.vol,
-     xlim=c(0,4000),
-     ylim=c(0,4000))
-abline(0,1)
-
-library(multcomp)
-
-vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey")) 
-summary(vol.glht, p.adjust.method = "bonferroni")
-cld(vol.glht, level = 0.05, decreasing = TRUE)  
-
-full.m2 <- lme(log.vol~CCF*LAI+CODE,
-               random=~1|BLOCK,
-               data=bl.t)
-
-AIC(full.m1,full.m2)
-
-
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
 library(fitdistrplus)
@@ -1092,16 +1015,12 @@ summary(beta.glht, p.adjust.method = "bonferroni")
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
-plot.estimates <- picea %>%
-  mutate(qmd.2 = qmd(bapa,tpa),
-         rd.2 = bapa/sqrt(qmd.2)) %>%
-  group_by(BLOCK, PLOT, CODE) %>%  
-  summarise(total.vol = sum(stand.vol, na.rm = TRUE),  
-            BAPA = mean(bapa),
-            TPA = mean(tpa),
-            QMD = mean(qmd.2),
-            RD = mean(rd.2),
+plot.estimates <- spruce %>%
+  group_by(BLOCK, PLOT, CODE) %>%
+  summarise(total.vol = sum(p.vol.ac, na.rm = TRUE) / 10,  
             .groups = 'drop')
+
+
 
 # calculate overyielding at plot level
 # deduction volume
@@ -1144,7 +1063,6 @@ avg.oy <- oy.results %>%
   )
 print(avg.oy)
 
-
 ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
   geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  
@@ -1153,6 +1071,7 @@ ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(breaks = c(1))
+
 
 # calculate transgressive overyielding
 calculate_transgressive_overyielding <- function(data) {
@@ -1220,16 +1139,17 @@ mcp <- picea %>% filter(CODE != "C")
 
 bl.t <- as.data.frame(bl.t)
 
-aov <- aov(fit.vol ~ CODE, data = bl.t)
+aov <- aov(new.fit.vol ~ CODE, data = bl.t)
 summary(aov)
 tukey <-aovtukey <- HSD.test(aov, "CODE", group = TRUE)
 
 tukey.results <- tukey$groups %>%
   as.data.frame() %>%
   rownames_to_column("CODE") %>%  
-  rename(mean_vol = fit.vol)
+  rename(mean_vol = new.fit.vol)
 
 print(tukey.results)
+
 
 #-------------------------------------------------------------------------------
 # MCP test for DBH.23, HT, HLC for a SPP in each CODE
