@@ -605,7 +605,7 @@ al <- spruce.only[c(1:8,12,66:80,87)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
-pa$top.prop <- pa$final.ht/pa$Top
+pa$top.prop <- (pa$final.ht-pa$Low)/(pa$Top-pa$Low)
 pa$bot.prop <- (pa$fit.hcb-pa$Low)/(pa$Top-pa$Low)
 pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
 head(pa)
