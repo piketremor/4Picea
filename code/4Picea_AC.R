@@ -25,15 +25,6 @@ site <- read.csv("4Picea_30m.csv")
 
 head(picea)
 names(picea)
-
-
-
-
-
-
-#min(spicea#min(site$elevation, na.rm = TRUE)  # Minimum elevation
-#mean(site$elevation, na.rm = TRUE) # Mean elevation
-#max(site$elevation, na.rm = TRUE)
 #-------------------------------------------------------------------------------
 #join stemform to picea by BLOCK, PLOT, TREE #join site to picea by BLOCK, PLOT
 #-------------------------------------------------------------------------------
@@ -52,6 +43,9 @@ picea$DBH.23[is.na(picea$DBH.23)] <- 0
 picea$HT.23 <- as.numeric(picea$HT.23)
 picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 
+require(dplyr)
+require(nlme)
+require(tidyr)
 #-------------------------------------------------------------------------------
 #calculate the proportion of each species by plot
 #-------------------------------------------------------------------------------
@@ -107,53 +101,6 @@ xyplot(bapa ~ tpa | CODE, data = picea)
 xyplot(bapa ~ tpa | CODE, data = picea, type="l")
 xyplot(bapa~Proportion|CODE,data=picea)
 
-#sums <- picea %>%
-  #group_by(CODE) %>%
-  #summarise(
-    #min = min(sdi),
-    #mean = mean(sdi),
-    #max = max(sdi),
-    #sd = sd(sdi)
-  #)
-
-#print(sums, n = nrow(sums))
-
-#sums2 <- picea %>%
-  #group_by(CODE, SPP) %>%
-  #summarise(
-    #min = min(final.hcb),
-    #mean = mean(final.hcb),
-    #max = max(final.hcb),
-    #sd = sd(final.hcb)
-  #
-
-#print(sums2, n = nrow(sums))
-#print(sums2, n = Inf)
-
-#convert to metric 
-#error because need to calculate qmd, vol first which is further down
-#picea.sum <- picea %>%
-  #mutate(
-    #qmdcm = qmd * 2.54,  
-    #baph = bapa * 2.47105,  
-    #tph = tpa * 2.47105,
-   #plotvolha = plot.vol * 0.0693 
-  #)
-
-#uniquedata <- picea.sum %>%
- #distinct(bapa, BLOCK, PLOT, CODE)
-
-#print(uniquedata, n = Inf)
-
-#avg <- picea %>%
-  #group_by(CODE) %>%
-  #summarise(
-    #avg_baph = mean(topht, na.rm = TRUE),
-    #.groups = 'drop'  
-  #)
-
-#print(avg, n = Inf)  
-
 #-------------------------------------------------------------------------------
 # #DBH distribution
 #-------------------------------------------------------------------------------
@@ -177,7 +124,7 @@ ggplot(picea.dist, aes(x = dbh.class, y = Count, fill = dbh.class)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
-# diameter distribution by CODE
+# Diameter distribution by CODE
 picea$dbh.class <- 2 * as.integer((picea$DBH.23 + (2 / 2)) / 2)
 
 picea.dist <- picea %>%
@@ -199,7 +146,7 @@ ggplot(picea.dist, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate labels for better readability
 
 #-------------------------------------------------------------------------------
-#generating height model
+# Generating height model
 #-------------------------------------------------------------------------------
 require(nlme)
 
@@ -305,169 +252,9 @@ xyplot(final.ht ~ DBH.23 | SPP,
 
 # dealing with outliers in the ht.mod predictions by SPP
 # ended up just manually removing the ht from 2 outlier RS stems
-#picea$hd2 <- ifelse(picea$hd<3,0,picea$hd)
-#picea$hd3 <- ifelse(picea$hd>8,0,picea$hd)
-#picea$diff <- picea$hd2-picea$hd3
-#picea$hd.new <- 
 
 #-------------------------------------------------------------------------------
-#imputing tree heights for all SPP (Wykoff for SPRUCE & FVS for all other SPP)
-#-------------------------------------------------------------------------------
-#require(MEForLab)
-
-#d <- (ht.mod$coefficients$random)
-#ds <- d$PLOT
-#BLOCK <- c("B2","B2","B2","B2","B2",
-           #"B2","B2","B2","B2","B2","B2",
-           #"B3","B3","B3","B3","B3","B3",
-           #"B3","B3","B3","B3",
-           #"B4","B4","B4","B4","B4",
-           #"B4","B4","B4","B4","B4")
-#PLOT <- c("1","2","3","4","5","6","7","8","9","10","11",
-          #"1","2","3","4","5","6","7","8","9","10",
-          #"1","2","3","4","5","6","7","8","9","10")
-#re.df <- as.data.frame(ds[,1:2])
-#red <- cbind(re.df,BLOCK,PLOT)
-#red$uid <- paste0(red$BLOCK,".",red$PLOT)
-#red <- red[c(1,2,5)]
-#spruces <- left_join(spruce,red,by=c("uid"))
-#pairs(spruces[c(28,29,12,23:24,26)])
-#plot(spruces$Proportion,spruces$b)
-#prop.mod <- lm(a~Proportion,data=spruces)
-#summary(prop.mod)
-
-#picea$sp.dum <- ifelse(picea$SPP=="WS"|picea$SPP=="BS"|picea$SPP=="NS"|picea$SPP=="RS",1,0)
-
-# if spruce, use the local model, otherwise use FVS base equations
-#picea$local.ht <- ifelse(picea$sp.dum=="1",predict(ht.mod2,picea),0)
-#picea$hd <- picea$local.ht/picea$DBH.23
-#xyplot(hd~DBH.23|SPP,data=picea,ylim=c(0,20))
-#picea$local.ht <- ifelse(picea$hd>12,0,picea$local.ht)
-#xyplot(local.ht~DBH.23|SPP,data=picea)
-#picea$fvs.ht <- ifelse(picea$local.ht<1,mapply(wykoff.ht,
-                                               #SPP=picea$SPP,
-                                               #DBH=picea$DBH.23),
-                       #0)
-#xyplot(fvs.ht~DBH.23|SPP,data=picea)
-#picea$HT.23[is.na(picea$HT.23)] <- 0
-#picea$model.ht <- ifelse(picea$local.ht>0,picea$local.ht,picea$fvs.ht)
-#picea$final.ht <- ifelse(picea$HT.23>0,picea$HT.23,picea$model.ht)
-
-#xyplot(final.ht~DBH.23|SPP,data=picea)
-#xyplot(final.ht~DBH.23|CODE,data=picea)
-
-#-------------------------------------------------------------------------------
-#generating crown ratio model
-#-------------------------------------------------------------------------------
-#library(dplyr)
-#library(nlme)
-
-#crownratio  <- dplyr::filter(picea,SPP=="NS"|SPP=="RS"|SPP=="WS"|SPP=="BS")
-#xyplot(HCB.23~DBH.23|SPP,data=crownratio)
-
-
-# Northeast FVS Variant Guide
-# WS SPP Group 3, RS BS NS SPP Group 4
-# FVS NE Variant Coef by SPP Group
-#coefficients <- data.frame(
-#sppgroup = c(3, 4),
-#b1 = c(7.840, 5.540),
-#b2 = c(0.0057, 0.0072),
-#b3 = c(1.272, 4.200),
-#b4 = c(-0.1420, -0.0530)
-#)
-
-#crownratio <- crownratio %>%
-#mutate(sppgroup = case_when(
-#SPP == "WS" ~ 3,  
-#SPP %in% c("NS", "BS", "RS") ~ 4,  
-#TRUE ~ NA_integer_  # NA for other SPP
-#))
-
-#crownratio <- crownratio %>%
-  #left_join(coefficients, by = "sppgroup")  
-
-# impute missing crown ratios using the basic formula from FVS NE Variant
-# guessing this doesn't calibrate to the LCR.23 heights measured in the field
-# looks like this assigned the same cr.fit value by SPP don't vary that much .2-.5 CR. For example, I had a measured CR on 0.82 but the predicted CR was .28. 
-#crownratio <- crownratio %>%
-  #mutate(
-  #cr.fit = (10 * b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))) / 100,  
-  #final.cr = ifelse(!is.na(LCR.23), LCR.23, cr.fit)  
-  #)
-
-#library(lattice)
-#xyplot(final.cr ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
-
-# crown ratio model using nlme/following ht.mod layout
-# could not get to run, is the issue because of the 2 species groups so the start parameters vary?
-#cr.mod <- nlme(
-  #LCR.23 ~ 10 * (b1 / (1 + b2 * bapa) + (b3 * (1 - exp(-b4 * DBH.23)))),  
-  #data = crownratio,  
-  #fixed = b1 + b2 + b3 + b4 ~ 1,
-  #random = b1 + b2 + b3 + b4 ~ 1 | BLOCK/SPP,  
-  ##start = c(b1 = 7.840, b2 = 0.0057, b3 = 1.272, b4 = -0.1420))#, 
-  #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000, optimMethod = "L-BFGS-B"))
-
-#plot(crownratio$DBH.23,crownratio$HCB.23)
-#xyplot(HCB.23~DBH.23|SPP,data=crownratio)
-#crownratio$CL <- crownratio$HT.23-crownratio$HCB.23
-#xyplot(CL~HT.23|SPP,data=crownratio,type=c("p"))
-#boxplot(CL~CODE,data=crownratio)
-
-#m2 <- lm(LCR.23~CODE+SPP,data=crownratio)
-#summary(m2)
-
-#m3 <- lm(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23),data=crownratio)
-#summary(m3)
-#m4 <- lme(LCR.23~CODE+SPP+DBH.23+HT.23+log(DBH.23)+MeanWD,data=crownratio,random=~1|BLOCK,na.action="na.omit")
-
-#crownratio$fit <- predict(m3,crownratio)
-#xyplot(crownratio~HT.23|SPP,data=crownratio)
-#Error in `[.data.frame`(y, id) : undefined columns selected
-#xyplot(fit~HT.23|SPP,data=crownratio)
-#xyplot(fit~HT.23|SPP,data=crownratio,type="l")
-#xyplot(fit~HT.23|SPP,data=crownratio,type="p")
-#xyplot(1-fit~HT.23|SPP,data=crownratio,type="p")
-#crownratio$crowndepth <- (crownratio$HT.23*crownratio$fit)
-#xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
-#crownratio$crowndepth <- crownratio$HT.23-(crownratio$HT.23-(crownratio$HT.23*crownratio$fit))
-#xyplot(crowndepth~HT.23|SPP,data=crownratio,type="p")
-
-#cr.mod2 <-  nlme(HCB.23 ~ 4.5+exp(a+b/(DBH.23+1)),
-                #data = crownratio,
-                #fixed = a + b ~ 1,
-                #random = a + b ~ 1 | BLOCK/PLOT/SPP,  
-                #na.action = na.pass,
-                #start = c(a = 4.5, b = -6),
-                #control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
-
-#performance(cr.mod2)
-#summary(cr.mod2)
-#ranef(cr.mod2)
-#AIC(cr.mod2)
-
-#picea$cr.fit2 <- predict(cr.mod2, crownratio)
-#xyplot(cr.fit2 ~ DBH.23 | SPP, data = crownratio)
-
-#picea$final.cr2 <- ifelse(!is.na(picea$LCR.23), picea$LCR.23, picea$cr.fit2)
-#xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio)
-#xyplot(final.cr2 ~ DBH.23 | SPP, data = crownratio, subset = SPP %in% c("WS", "BS", "RS", "NS"))
-
-require(devtools)
-#devtools::install("C:/Users/michael.premer/Documents/GitHub/GreenTimbMerch")
-require(GreenTimbMerch)
-
-picea$dbh.cm <- picea$DBH.23*2.54
-picea$ht.m <- picea$ht.fit/3.28
-spruce <- dplyr::filter(picea,SPP=="NS"|SPP=="WS"|SPP=="RS"|SPP=="BS")
-
-spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht.m,
-                            Planted=TRUE)
-
-
-#-------------------------------------------------------------------------------
-#basal area larger (bal) - (tree level)
+# Basal area larger (bal) - (tree level)
 #-------------------------------------------------------------------------------
 spruce.bal <- picea%>%
   mutate(basal.area = picea$DBH.23^2*0.005454)%>%
@@ -492,7 +279,7 @@ picea <- picea %>%
             by = c("uid", "BLOCK", "PLOT", "TREE"))
 
 #-------------------------------------------------------------------------------
-#height larger (htl) - (tree level)
+#Height larger (htl) - (tree level)
 #-------------------------------------------------------------------------------
 spruce.htl <- picea%>%
   group_by(uid)%>%
@@ -511,51 +298,28 @@ picea <- picea %>%
             by = c("uid", "BLOCK", "PLOT", "TREE"))
 
 #-------------------------------------------------------------------------------
-#maximum crown width (tree level)
+# Maximum crown width (tree level)
 #-------------------------------------------------------------------------------
 picea <- picea %>%
   mutate(DBH = as.numeric(DBH.23), 
          MCW = mapply(MCW, SPP = SPP, DBH = DBH))
 
 #-------------------------------------------------------------------------------
-#CCF 
+# CCF 
 #-------------------------------------------------------------------------------
-#picea <- picea %>%
-  #mutate(
-    #CL = HT.23 - HCB.23,   #CL = crown length
-    #CD = (CL + MCW) / 2     # CD = crown width diameter
-  #)
-
-#picea <- picea %>%
-  #mutate(
-    #CA = pi * (CD / 2)^2  # CA = crown area
-  #)
-
-#picea <- picea %>%
-  #group_by(BLOCK, PLOT) %>%
-  #mutate(CA.plot = sum(CA, na.rm = TRUE)) %>%
-  #ungroup()
-
-#picea <- picea %>%
-  #mutate(CCF = (CA / CA.plot) * 10) #1/10 acre plots
-
-# mikes formula
 spruce.ccf <- picea%>%
   mutate(CW = mapply(MCW,SPP=SPP,DBH=DBH),
          CA = (CW/2)^2*pi,
          CA.exp = CA*10)%>%
   group_by(BLOCK,PLOT)%>%
-  summarize(CCF = (sum(CA.exp)/43560)*100) #should I divide by 4356 to represent 1/10 acre plots or no
-
-#picea.m <- left_join(spruce,spruce.ccf)
-#plot(picea.m$bapa,picea.m$CCF)
+  summarize(CCF = (sum(CA.exp)/43560)*100)
   
 picea <- picea %>%
   left_join(spruce.ccf %>% select(BLOCK, PLOT, CCF), 
             by = c("BLOCK", "PLOT"))
 
 --------------------------------------------------------------------
-#Site Index - (calculated at tree level, summarize by Block and Plot)
+# Site Index - (calculated at tree level, summarize by Block and Plot)
 #-------------------------------------------------------------------------------
 sum(is.na(picea$final.ht))  # Number of missing values in final.ht
 picea <- picea %>%
@@ -578,7 +342,7 @@ picea %>%
   summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
 
 #-------------------------------------------------------------------------------
-#Top Height/HT40 (vicary height) - (tree or plot level?)
+# Top Height/HT40 (vicary height) - (tree or plot level?)
 #-------------------------------------------------------------------------------
 picea <- picea%>%
   mutate(topht=mapply(vicary.height,SPP="RS", age=28, si=vicary.si))
@@ -588,7 +352,7 @@ picea %>%
   summarise(spruce.topht = mean(topht, na.rm = TRUE))
 
 #-------------------------------------------------------------------------------
-#qmd - (plot level)
+# qmd - (plot level)
 #-------------------------------------------------------------------------------
 spruce.qmd <- picea %>%
   group_by(BLOCK, PLOT) %>%
@@ -601,10 +365,10 @@ picea <- picea %>%
             by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
-#relative density index - (plot level)
+# Relative density index - (plot level)
 #-------------------------------------------------------------------------------
 spruce.rd <- picea %>%
-  mutate(rdi = mapply(relative.density.index, bapa = bapa, qmd = qmd))
+  mutate(rdi = mapply(relative.density.index, bapa, qmd))
 
 spruce.rd_summary <- spruce.rd %>%
   group_by(BLOCK, PLOT) %>%
@@ -614,7 +378,7 @@ picea <- picea %>%
   left_join(spruce.rd_summary, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
-#relative spacing - (plot level)
+# Relative spacing - (plot level)
 #-------------------------------------------------------------------------------
 str(relative.spacing)
 
@@ -625,7 +389,7 @@ picea %>%
   group_by(BLOCK, PLOT) %>%
   summarise_at(vars(rs), list(name = mean))
 #-------------------------------------------------------------------------------
-#stand density index - (plot level)
+# Stand density index - (plot level)
 #-------------------------------------------------------------------------------
 picea <- picea %>%
   mutate(sdi=mapply(stand.density.index,tpa=tpa, qmd=qmd))
@@ -637,65 +401,64 @@ picea %>%
 xyplot(qmd~tpa|CODE,data=picea)
 
 #-------------------------------------------------------------------------------
-#volume calculation at the individual tree level (ft3)
+# Honer volume calculation at the individual tree level (ft3)
 #-------------------------------------------------------------------------------
-picea <- picea%>%
-  mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
-xyplot(vol~DBH.23|CODE,data=picea)
-
-p.vol.code <- ggplot(picea, aes(factor(CODE), vol)) +
-  geom_boxplot() +
-  ylab("Volume (cubic feet)") +
-  xlab("Species Mixture") +
-  ggtitle("Volume by Species Mixture")
-print(p.vol.code)
-
-# filter for the species of interest
-picea.ns <- picea %>%
-  filter(SPP == "NS")
-
-# calculate the volume for just NS across plots
-picea.ns <- picea.ns %>%
-  mutate(vol = mapply(vol.calc, SPP = SPP, DBH = DBH.23, HT = final.ht))
-
-picea.ns<-filter(picea.ns,CODE != "BW"&CODE !="RW"&CODE !="W")
-p.vol <- ggplot(picea.ns, aes(factor(CODE), vol)) +
-  geom_boxplot()+
-  ylab("Volume (cubic feet)") +
-  xlab("Species")
-
-p.vol
+#picea <- picea%>%
+  #mutate(vol=mapply(vol.calc,SPP=SPP,DBH=DBH.23,HT=final.ht))
+#xyplot(vol~DBH.23|CODE,data=picea)
 
 #calculate volume at plot level
-picea <- picea %>%
+#picea <- picea %>%
+  #group_by(BLOCK, PLOT) %>%
+  #mutate(stand.vol = sum(vol, na.rm = TRUE) * 10)
+
+#plot(vol2$fitted.values, resid(vol), 
+     #xlab = "Fitted Values", 
+     #ylab = "Residuals", 
+     #main = "Residual Plot",
+     #pch = 20, col = "black")
+#abline(h = 0, lty = 2, col = "red")
+
+#-------------------------------------------------------------------------------
+# Kozak volume calculation at the individual tree level (ft3)
+#-------------------------------------------------------------------------------
+require(devtools)
+#devtools::install("C:/Users/ashley.lynn.carter/Documents/GitHub/GreenTimbMerch")
+require(GreenTimbMerch)
+
+picea$dbh.cm <- picea$DBH.23*2.54
+picea$ht.m <- picea$ht.fit/3.28
+spruce <- dplyr::filter(picea,SPP=="NS"|SPP=="WS"|SPP=="RS"|SPP=="BS")
+
+spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht.m,
+                            Planted=TRUE)
+#convert to m3/ha
+spruce <- spruce %>%
+  group_by(BLOCK,PLOT) %>%
+  mutate(
+    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
+  )
+
+
+#convert to ft3/ac
+spruce <- spruce %>%
   group_by(BLOCK, PLOT) %>%
-  mutate(stand.vol = sum(vol, na.rm = TRUE) * 10)
-
-#plot(vol)
-
-plot(vol2$fitted.values, resid(vol), 
-     xlab = "Fitted Values", 
-     ylab = "Residuals", 
-     main = "Residual Plot",
-     pch = 20, col = "black")
-abline(h = 0, lty = 2, col = "red")
+  mutate(
+    p.vol.ac = p.vol.ha * 14.28
+  )
 
 #-------------------------------------------------------------------------------
 # Variable selection procedures using VSURF package for integer response variable
 #-------------------------------------------------------------------------------
-library(randomForest)
-library(VSURF)
-library(caTools)
-library(pscl)
+require(randomForest)
+require(VSURF)
+require(caTools)
+require(pscl)
 
-# premer start 
+spruce$deductclass <- 5*as.integer((spruce$T_DEDUCT+(5/2))/5)
 
-picea$deductclass <- 5*as.integer((picea$T_DEDUCT+(5/2))/5)
-# are we sure we are only fitting trees that have a measurement
-
-hist(picea$deductclass)
-picea2 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-d.set <- picea2
+hist(spruce$deductclass)
+d.set <- spruce
 d.set$T_DEDUCT[is.na(d.set$T_DEDUCT)] <- 999
 d.set <- dplyr::filter(d.set,T_DEDUCT<998)
 #d.set$HT.23[is.na(d.set$HT.23)] <- 0
@@ -703,14 +466,17 @@ d.set <- dplyr::filter(d.set,T_DEDUCT<998)
 plot(d.set$DBH.23,d.set$HT.23)
 
 names(d.set)
-obs <- d.set$deductclass
+#obs <- d.set$deductclass
 #obs[is.na(obs)] <- 0
-preds <- d.set[c(4,11,12,21:46,51:54,57:61,65,66,71,76:79)]
+#preds <- d.set[c(4,11,12,21:46,51:54,57:61,65,66,71,76:79)]
 #preds[is.na(preds)] <- 0
 #vs <- VSURF(preds,obs,ncores = 4)
 #vs$varselect.pred
-xyplot(deductclass~DBH.23|SPP,data=d.set)
-preds2 <- d.set[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
+#names(preds)
+
+# SPP, CODE
+
+#preds2 <- d.set[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
 #preds2[is.na(preds2)] <- 0
 #obs <- d.set$deductclass
 #obs[is.na(obs)] <- 0
@@ -718,30 +484,18 @@ preds2 <- d.set[c(11,12,21:46,51:55,57:61,65,66,71,76:79)]
 #nvs$varselect.pred
 #names(preds2)
 
-#lai, code, rs, bal, sdi
+#CODE, topht, bapa, bal
 
-#mod1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|1,
-                   #data=d.set,dist="negbin")
-#summary(mod1)
-
-#mod2 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|rs+sdi+bal+roughness+CODE,
-                 #data=d.set,dist="negbin")
-#summary(mod2)
-#AIC(mod1,mod2)
-
-#mod3 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE,
-                 #data=d.set,dist="negbin")
-#summary(mod3)
-#AIC(mod3,mod2)
-
-d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
 
 mod3.1 <- zeroinfl(deductclass~rs+sdi+bal+roughness+CODE|sdi+bal+CODE+SPP,
                  data=d.set,dist="negbin")
 summary(mod3.1)
-AIC(mod3.1)
-
 performance(mod3.1)
+
+#mod3.2 <- zeroinfl(deductclass~topht+bapa+bal+CODE|topht+bapa+bal+CODE+SPP,
+                   #data=d.set,dist="negbin")
+#summary(mod3.2)
+#AIC(mod3.2, mod3.1)
 
 predictions <- predict(mod3.1, type = "response")
 observed <- d.set$deductclass
@@ -752,136 +506,35 @@ mab
 
 # dang, that is good. 
 
-picea$fit.deduction <- ifelse(picea$SPP=="RS"|
-                              picea$SPP=="WS"|
-                              picea$SPP=="BS"|
-                              picea$SPP=="NS",predict(mod3.1,type="response"),0)
-picea$fit.deduct.class <- (5*as.integer((picea$fit.deduction+(5/2))/5))/100
+spruce$fit.deduction <- ifelse(spruce$SPP=="RS"|
+                              spruce$SPP=="WS"|
+                              spruce$SPP=="BS"|
+                              spruce$SPP=="NS",predict(mod3.1,type="response"),0)
+spruce$fit.deduct.class <- (5*as.integer((spruce$fit.deduction+(5/2))/5))/100
 # will use the modeled reduction
-picea$fit.deduct.class[picea$fit.deduct.class>1] <- 1
+spruce$fit.deduct.class[spruce$fit.deduct.class>1] <- 1
 
-picea$adj.vol <- picea$vol*picea$fit.deduct.class
-plot(picea$vol,picea$adj.vol,ylim=c(0,15),xlim=c(0,15))
-picea$final.vol <- picea$vol-picea$adj.vol
+spruce$adj.vol <- spruce$p.vol.ac*spruce$fit.deduct.class
+plot(spruce$p.vol.ac,spruce$adj.vol,ylim=c(0,2000),xlim=c(0,2000))
+spruce$final.vol <- spruce$p.vol.ac-spruce$adj.vol
 
-#calclate plot level vol 
-picea <- picea %>%
+#convert final.vol to m3/ha
+spruce <- spruce %>%
+  mutate(final.vol.ha = final.vol * 0.0698)
+
+#needed to average it since orginally calculate at tree-level
+final.vol.ha <- spruce %>%
   group_by(BLOCK, PLOT) %>%
-  mutate(plot.vol = sum(final.vol, na.rm = TRUE),
-         plot.vol = plot.vol * 10)
+  summarise(final.vol.ha.avg = mean(final.vol.ha, na.rm = TRUE),  
+            .groups = 'drop')
 
-
-picea.2 <- picea %>% filter(CODE != "C")
-p.vol.code <- ggplot(picea.2, aes(x = factor(CODE), y = plot.vol)) +
-  geom_boxplot() +
-  ylab("Volume (ft³/ac)") +
-  xlab("Species Mixture") +
-  theme_minimal(base_size = 14) 
-print(p.vol.code)
-
-library(dplyr)
-
-# for fun, looking at LAI
-plot(d.set$wsi,d.set$LAI)
-obs.d <- d.set$LAI
-preds.d <- d.set[c(12,21:46,51:55,57:61,65,66,71,76:79)]
-#fun <- VSURF(preds.d,obs.d)
-
-#fun$varselect.pred
-names(preds.d)
-
-# covariates with LAI - CODE, tri, roughness, qmd, rdi, and nit
-d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
-plot(d.set$SWC2,d.set$LAI)
-
-ch <- lm(LAI~roughness+SWC2,data=d.set)
-summary(ch)
-plot(ch)
-d.set$fit <- predict(ch,d.set)
-d.set$resid <- d.set$LAI-d.set$fit
-plot(d.set$fit,d.set$resid)
-abline(h=0)
-
-plot(d.set$LAI~d.set$SWC2)
-plot(d.set$MeanWD,d.set$LAI)
-boxplot(LAI~CODE,data=d.set)
-
-# premer, end. 
-
-str(d.set)
-require(pscl)
-iz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
-               dist="negbin",data=d.set)
-summary(iz)
-
-performance(iz)
-plot(iz)
-izz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
-               dist="poisson",data=d.set)
-AIC(iz,izz)
-summary()
-
-plot(deductclass ~ SPP, data = d.set, subset = deductclass > 0,
-     log = "y", main = "Count (positive)")
-
-# SPP, DBH, rs, Densic# SPP, DBH, rs, htl
-
-# let's try something.... 
-d.set$deductclass[is.na(d.set$ded)] <- 0
-d.set$d.dummy <- as.factor(ifelse(d.set$deductclass>0,1,0))
-#vs2 <- VSURF(preds,d.set$d.dummy)
-
-vs2$varselect.pred
-names(preds)
-#sp, qmd , rs
-
-require(pscl)
-mod8 <- zeroinfl(deductclass ~dew + qmd + rs,
-                 dist = "negbin", data = d.set)
-mod8
-plot(mod8)
-require(DHARMa)
-
-mod9 <- zeroinfl(deductclass ~dew + qmd + rs,
-                 data = d.set)
-AIC(mod8,mod9)
-summary(mod8)
-# the VSURF looks great for the zero inflateed, now for the continuous
-
-much <- dplyr::filter(d.set,deductclass>0)
-
-require(leaps)
-much$deductclass <- as.integer(much$deductclass)
-plot(much$deductclass)
-#dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
- #                                  tri+ tpi+roughness+slope+aspect+flowdir+tmin+tmean+ 
-  #                                 tmax+ dew+vpdmax+vpdmin+McNab+Bolstad+Profile+Planform+
-   #                                Winds10+Winds50+SWI+RAD+ppt+Parent+
-    #                               dep+ex.k+nit+SWC2+MeanWD+Proportion+Min_depth+WD2000+
-     #                              WD2020+WHC+ex.mg+ex.ca+ph+bapa+tpa+hd+bal+htl+ 
-      #                             vicary.si+steinman.si+topht+qmd+rdi+rs+sdi,
-       #                            data=much,method="exhaustive",really.big=TRUE)
-
-
-require(performance)
-performance(mod8)
-
-logLik(mod8)*-2
-BIC(mod8)
-mod8null <- update(mod8,.~1)
-pchisq(2*logLik(mod8)-logLik(mod8null),df=16,lower.tail = FALSE)/16
-
-expected.counts<-m2$fitted.values
-chisq.term<-(obs.counts-expected.counts)^2/expected.counts
-df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
-                Ek=expected.counts,ChiSqk=chisq.term)
-
-#spp, dbh, htl
+spruce <- spruce %>%
+  left_join(final.vol.ha, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
 # HCB Model
 #-------------------------------------------------------------------------------
-#h.set <- picea10
+#h.set <- picea
 #h.set$HCB.23[is.na(h.set$HCB.23)] <- 999
 #h.set <- dplyr::filter(h.set,HCB.23<998)
 
@@ -890,7 +543,7 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #obs[is.na(obs)] <- 0
 #preds <- h.set[c(4,6,7,11,12,21:46,50:61,65,66,71,72,75,76,77,78,79,80,81,82)]
 #preds2 <- h.set[c(4,6,7,11,12,21:46,50:54,57:61)] #take out stand structure metrics
-#preds[is.na(preds)] <- 0
+#preds[is.na(preds2)] <- 0
 #vs <- VSURF(preds2,obs,ncores = 4)
 #vs$varselect.pred
 #names(preds2)
@@ -898,43 +551,17 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
 #HT.23, log(bal), log(CCF), hd, DBH.23 for A. Weiskittel paper
 #SPP, CODE, rdi, vicary.si (circular), bal for preds
 #SPP, HT.23, DBH.23, CODE for preds2
-# tried just leaving site vars in as only predictors but only picked up RS_Suitability
+#SPP, HT.23, DBH.23, vpdmax
 
-# your filter below includes trees with no ht measurent, right? 
-
-#picea.11 <- dplyr::filter(picea,SPP=="WS"|SPP=="NS"|SPP=="RS"|SPP=="BS")
-#picea.11 <- dplyr::filter(picea, (SPP %in% c("WS", "NS", "RS", "BS")) & (CODE != "C")) # filter out the control (C) plots too?
-#names(spruce.bal)
-#spruce.bal2 <- spruce.bal[c(1,2,3,72)]
-
-#d.set <- dplyr::left_join(d.set,spruce.bal2)
-#xyplot(HCB.23~HT.23|SPP,data=d.set)
-
-#hcb.mod <- lm(HCB.23 ~I(log(CCF)) + final.ht + bal + factor(SPP) + factor(CODE), data = d.set)
-#summary(hcb.mod)
-
-#hcb.mod2 <- lm(HCB.23 ~final.ht + bal  + factor(SPP) + factor(CODE),data = d.set)
-#summary(hcb.mod2)
-
-#hcb.mod3 <- lme(HCB.23~final.ht+bal+factor(SPP)+factor(CODE),data=d.set,
-
-#model2 <- lm(HCB.23 ~I(log(CCF))+HT.23 + bal  + factor(SPP) + factor(CODE),data = d.set)
-#summary(model2)
-
-#model3 <- lme(HCB.23~HT.23+I(log(CCF))+bal+factor(SPP)+factor(CODE),data=d.set,
-          #random=~1|BLOCK/PLOT,na.action="na.omit",method="REML")
-
-hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23  + factor(SPP) + factor(CODE),data = d.set) #log final.ht or DBH.23 did not improve AIC
-summary(hcb.mod4)
+hcb.mod1 <- lm(HCB.23 ~final.ht + DBH.23  + vpdmax + factor(SPP), data = picea) 
+summary(hcb.mod1)
+performance(hcb.mod1)
 AIC(hcb.mod4)
-#AIC(model2, hcb.mod4) #hcb.mod4 is better model 
 
-residuals <- residuals(hcb.mod4)
-ggplot(data.frame(fitted = fitted(hcb.mod4), residuals = residuals(model)), aes(x = fitted, y = residuals)) +
-  geom_point(color = "blue") +
-  geom_hline(yintercept = 0, color = "red", linetype = "dashed") +
-  labs(title = "Residuals vs Fitted Values", x = "Fitted Values", y = "Residuals") +
-  theme_minimal()
+hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23 +factor(SPP) + factor(CODE),data = picea) #log final.ht or DBH.23 did not improve AIC
+summary(hcb.mod4)
+performance(hcb.mod4)
+AIC(hcb.mod1, hcb.mod4) #hcb.mod4 is better model, hcb.mod1 had a higher R2 but also high AIC 
 
 rmse <- rmse(hcb.mod4)
 print(paste("RMSE:", rmse))
@@ -952,75 +579,9 @@ picea$hcb.fit <- ifelse(picea$SPP=="RS"|
                           picea$SPP=="NS",predict(hcb.mod4,type="response"),0)
 picea$final.hcb <- ifelse(!is.na(picea$HCB.23), picea$HCB.23, picea$hcb.fit)
 
-#now, for the model. 
-
-# test
-#d.set$fit.X <- predict(hcb.mod4,d.set)
-
-#d.set$fit.hcb <- d.set$HT.23/
-  #(((1+1*exp(-1*d.set$fit.X)))^(1/6))
-
-#plot(d.set$fit.hcb,d.set$HCB.23)
-#abline(0,1)
-
-#xyplot(fit.hcb~HCB.23|CODE,data=d.set,type="l")
-#xyplot(fit.hcb~HT.23|CODE,data=d.set,type="l")
-
-#d.set$lin.fit <- predict(model2,d.set)
-#plot(d.set$HCB.23,d.set$lin.fit)
-#abline(0,1)
-
-#xyplot(HCB.23~lin.fit|SPP,data=d.set,xlim=c(0,30),ylim=c(0,40))
-
-#plot(residuals(model2))
-
-#d.set$exp.fit <- d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
-#plot(d.set$HCB.23,d.set$exp.fit)
-#abline(0,1)
-
-#xyplot(d.set$HCB.23~d.set$DBH.23|d.set$SPP)
-
-# model2 is better
-#coefficients <- coef(model2)
-#print(coefficients)
-
-#B0 <- -0.27150984       # Intercept
-#B1 <- 0.33969644     # HT.23
-#B2 <- 0.02672539     #bal  
-#B3 <- -4.3512    # factor(SPP)NS
-#B4 <- -3.26968020  # factor(SPP)RS
-#B5 <- -2.48090535     # factor(CODE)BR
-#B6 <- 1.55275136    # factor(CODE)BW
-#B7 <- 1.67330013    # factor(CODE)N
-#B8 <- 2.02087534     # factor(CODE)NW
-#B9 <- -1.57597904    #factor(CODE)R
-
-#d.set$X <- B0 + 
-  #B1 +#* d.set$HT.23 + 
-  #B2 +#* d.set$bal + 
-  #ifelse(d.set$SPP == "NS", B3, 0) + 
-  #ifelse(d.set$SPP == "RS", B4, 0) +
-  # ifelse(d.set$CODE == "BR", B5, 0) +
-  #ifelse(d.set$CODE == "BW", B6, 0) +
-  #ifelse(d.set$CODE == "N", B7, 0) +
-  #ifelse(d.set$CODE == "NW", B8, 0) +
-  #ifelse(d.set$CODE == "R", B9, 0)
-
-#c <- 1
-#k <- 1
-#m <- 10
-
-#d.set <- d.set %>%
-  #mutate(HCB1 = HT.23 / (1 + c * exp(-k * X))^(1/m),
-         #HCB2 = HT.23*(1-1*exp(-1*d.set$X^10)))
-
-#plot(d.set$HCB1,d.set$HCB.23)
-#abline(0,1)
-
-#plot(d.set$HCB.23,d.set$HCB1) 
-#abline(0,1)
-#d.set$HT.23*(1-1*exp(-1*d.set$lin.fit^10))
-
+#-------------------------------------------------------------------------------
+# Crown Stratification
+#-------------------------------------------------------------------------------
 picea$fit.hcb <- predict(hcb.mod4,picea)
 spruce.only <- dplyr::filter(picea,SPP=="RS"|SPP=="NS"|SPP=="WS"|SPP=="BS")
 spruce.only$HT.23 <- ifelse(is.na(spruce.only$HT.23),spruce.only$final.ht,spruce.only$HT.23)
@@ -1040,7 +601,7 @@ nd2 <- left_join(nd,cpi.frame)
 head(nd2)
 
 names(spruce.only)
-al <- spruce.only[c(1:8,12,66,70,93)]
+al <- spruce.only[c(1:8,12,66:80,87)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
@@ -1120,6 +681,9 @@ interval <- ca.avg.smooth %>%
   )
 interval
 
+#-------------------------------------------------------------------------------
+# Volume predictions for all for just mixtures 
+#-------------------------------------------------------------------------------
 #auc by each SPP in CODE
 auc.spp <- ca.avg.smooth %>%
   group_by(CODE, SPP) %>%
@@ -1150,16 +714,17 @@ blues <- blueberry%>%
 plot.sums <-  picea%>%
   mutate(ba = DBH.23^2*0.005454,
          ef = 10,
-         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht))%>%
+         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht),
+         c.area = (MCW/2)^2*pi)%>%
   group_by(BLOCK,PLOT,CODE)%>%
   summarize(bapa = sum(ba*ef),
             tpa = sum(ef),
             qmd = qmd(bapa,tpa),
             rd=relative.density.index(bapa,qmd),
             volume = sum(tree.vol*ef),
-            CCF=mean(CCF),
+            CCF=(sum(c.area*ef)/43560)*100,
             LAI=mean(LAI))
-
+head(plot.sums)
 bl.ch <- left_join(blues,plot.sums)
 bl.c <- left_join(bl.ch,site)
 head(bl.c)
@@ -1217,7 +782,6 @@ summary(lm6)
 AIC(lm4, lm6)
 
 
-
 summary(lm1)
 plot(lm1)
 
@@ -1234,27 +798,41 @@ library(nlcor)
 
 c <- nlcor(bl.c$AUC,bl.c$LAI)
 
-# volume predictions for all plots only 
-plot.summary <-  picea%>%
-  mutate(ba = DBH.23^2*0.005454,
-         ef = 10,
-         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht))%>%
-  group_by(BLOCK,PLOT,CODE)%>%
-  summarize(bapa = sum(ba*ef),
-            tpa = sum(ef),
-            qmd = qmd(bapa,tpa),
-            rd=relative.density.index(bapa,qmd),
-            volume = sum(tree.vol*ef),
-            CCF=mean(CCF),
-            LAI=mean(LAI))
-bl.t <- left_join(plot.summary,site)
+#-------------------------------------------------------------------------------
+# Volume predictions for all treatments
+#-------------------------------------------------------------------------------
+plot.summary <- spruce %>%
+  mutate(
+    ba = DBH.23^2 * 0.005454,  
+    ef = 10,
+    c.area = (MCW/2)^2*pi,
+    ht.m = ht.fit/3.28,
+    dbh.cm = DBH.23*2.54)%>%
+  group_by(BLOCK, PLOT, CODE) %>%
+  summarize(
+    bapa = sum(ba * ef),                           
+    tpa = sum(ef),                                
+    qmd = qmd(bapa, tpa),                          
+    rd = relative.density.index(bapa, qmd),        
+    volume.ha = sum(new.vol.m3*ef*2.47, na.rm = TRUE),        
+    CCF = (sum(c.area*ef, na.rm = TRUE)/43560)*100,                 
+    LAI = mean(LAI, na.rm = TRUE))
+
+head(plot.summary)
+
+bl.t <- plot.summary%>%
+  left_join(.,site)%>%
+  mutate(baph = bapa/4.356,
+         tph = tpa*2.47)
 head(bl.t)
+
 bl.t <- bl.t %>%
   filter(CODE != "C")
 
+names(bl.t)
 
 require(leaps)
-modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
+modz <- regsubsets(volume.ha~BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                      WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
@@ -1262,54 +840,53 @@ modz <- regsubsets(volume~BS_Suitability+WS_Suitability+RS_Suitability+
 
 summary(modz)
 
-lm1 <- lm(volume~log(LAI)+SWI+tmean+ph,data=bl.t)
-
 library(MASS)
-b <- boxcox(lm(volume ~ 1,data=bl.t))
+b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
 # Exact lambda
 lambda <- b$x[which.max(b$y)]
 lambda
 
-plot(density((1/sqrt(bl.t$volume))))
-plot(density((bl.t$volume)))
-plot(density(bl.t$volume^1/2))
-plot(density(bl.t$volume^1/3))
-plot(density(log(bl.t$volume)))
-bl.t$log.vol <- log(bl.t$volume)
+plot(density((bl.t$volume.ha)))
+plot(density(sqrt(bl.t$volume.ha)))
+plot(density(log(bl.t$volume.ha)))
 
-modz <- regsubsets(log.vol~BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+LAI+CCF+
+bl.t$sq.vol <- sqrt(bl.t$volume.ha)
+
+modz <- regsubsets(sq.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
                      WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
                    data=bl.t)
 summary(modz)
 
-full.m1 <- lm(log.vol~CCF*LAI+CODE,
-              data=bl.t)
+modz2 <- regsubsets(sq.vol~CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+                     tri+tpi+roughness+SWI+
+                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
+                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+                   data=bl.t)
+summary(modz2)
+
+#bapa + tpa + qmd + rd + CCF
+
+full.m1 <- lm(sq.vol~rd+CODE*aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
-plot(full.m1)
+performance(full.m1)
+require(car)
 vif(full.m1)
+AIC(full.m1)
 
-anova(full.m1)
+full.mm <- lme(sq.vol~rd+CODE*aspect,data=bl.t,
+               random=~1|BLOCK,
+               na.action="na.omit")
+AIC(full.mm,full.m1)
 
-#back transform log(vol) and predict on dataset
-bl.t$fit.vol <- exp(predict(full.m1,bl.t)) 
+# full.m1 is the final model. 
 
-bacon <- bl.t %>%
-  group_by(CODE) %>%
-  summarize(
-    mean_fit.vol = mean(fit.vol, na.rm = TRUE),
-    sd_fit.vol = sd(fit.vol, na.rm = TRUE)
-  )
+#fit 
+bl.t$new.fit.vol <- predict(full.m1, bl.t)
+bl.t$new.fit.vol <- bl.t$new.fit.vol^2  #back transform sqrt(vol) and predict on dataset
+view(bl.t)
 
-View(bacon)
-
-# so, final model is volume=exp(b0+b1*CCF+b2*LAI+b3*CCF*LAI+b4*CODE)
-
-plot(bl.t$volume,bl.t$fit.vol,
-     xlim=c(0,4000),
-     ylim=c(0,4000))
-abline(0,1)
 
 library(multcomp)
 
@@ -1317,12 +894,50 @@ vol.glht <- glht(full.m1, linfct = mcp(CODE = "Tukey"))
 summary(vol.glht, p.adjust.method = "bonferroni")
 cld(vol.glht, level = 0.05, decreasing = TRUE)  
 
-full.m2 <- lme(log.vol~CCF*LAI+CODE,
-               random=~1|BLOCK,
-               data=bl.t)
 
-AIC(full.m1,full.m2)
+# volume is transformed (sqrt)
+library(ggplot2)
+library(ggeffects)
+mydf2 <- ggpredict(full.m1,terms=c("rd","CODE","aspect"))
 
+#png("~/Desktop/SMC_Sinuosity_Model_Output.png",units='in',height=5.5,width=14,res=1000)
+#theme_set(theme_bw(16))
+
+library(ggplot2)
+ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
+  geom_line(aes(linetype=group,color=group),size=1)+
+  #labs(x="Tree height (m)",y="Probabilty of sinuosity (%)")+
+  #ylim(0,55)+
+  #xlim(4,6)+
+  facet_wrap(~facet)+
+  theme_bw(18) 
+  #theme(legend.position="none")
+  #scale_y_continuous(trans="sq")
+  #scale_color_manual(values=c('gray0','gray70','gray40'))+
+  #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
+
+#back transform volume
+mydf2 <- ggpredict(full.m1, terms = c("rd", "CODE", "aspect"))
+
+# Back-transform from square root
+mydf2$predicted <- mydf2$predicted^2
+mydf2$conf.low <- mydf2$conf.low^2
+mydf2$conf.high <- mydf2$conf.high^2
+
+ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
+  geom_line(aes(linetype = group, color = group), size = 1) +
+  facet_wrap(~facet) +
+  ggtitle(expression(paste("Aspect (", degree, ")"))) +
+  labs(
+    x = "Relative Density (%)",
+    y = expression(paste("Volume (", m^3, " ", ha^-1, ")")),
+    colour = "Treatment",
+    linetype = "Treatment"
+  ) +
+  theme_bw(18) +
+  theme(
+    plot.title = element_text(hjust = 0.5)  # centers the title
+  )
 
 
 #fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
@@ -1426,16 +1041,12 @@ summary(beta.glht, p.adjust.method = "bonferroni")
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
 #-------------------------------------------------------------------------------
-plot.estimates <- picea %>%
-  mutate(qmd.2 = qmd(bapa,tpa),
-         rd.2 = bapa/sqrt(qmd.2)) %>%
-  group_by(BLOCK, PLOT, CODE) %>%  
-  summarise(total.vol = sum(stand.vol, na.rm = TRUE),  
-            BAPA = mean(bapa),
-            TPA = mean(tpa),
-            QMD = mean(qmd.2),
-            RD = mean(rd.2),
+plot.estimates <- spruce %>%
+  group_by(BLOCK, PLOT, CODE) %>%
+  summarise(total.vol = sum(p.vol.ac, na.rm = TRUE) / 10,  
             .groups = 'drop')
+
+
 
 # calculate overyielding at plot level
 # deduction volume
@@ -1478,7 +1089,6 @@ avg.oy <- oy.results %>%
   )
 print(avg.oy)
 
-
 ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   geom_bar(stat = "identity", fill = "grey") +  
   geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  
@@ -1487,6 +1097,7 @@ ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(breaks = c(1))
+
 
 # calculate transgressive overyielding
 calculate_transgressive_overyielding <- function(data) {
@@ -1554,16 +1165,17 @@ mcp <- picea %>% filter(CODE != "C")
 
 bl.t <- as.data.frame(bl.t)
 
-aov <- aov(fit.vol ~ CODE, data = bl.t)
+aov <- aov(new.fit.vol ~ CODE, data = bl.t)
 summary(aov)
 tukey <-aovtukey <- HSD.test(aov, "CODE", group = TRUE)
 
 tukey.results <- tukey$groups %>%
   as.data.frame() %>%
   rownames_to_column("CODE") %>%  
-  rename(mean_vol = fit.vol)
+  rename(mean_vol = new.fit.vol)
 
 print(tukey.results)
+
 
 #-------------------------------------------------------------------------------
 # MCP test for DBH.23, HT, HLC for a SPP in each CODE
@@ -2558,3 +2170,100 @@ dmod <- lm(Scale ~ SPP, data = ss.ht.df[ss.ht.df$CODE == "RW", ])
 scale.glht <- glht(dmod, linfct = mcp(SPP = "Tukey"))
 summary(scale.glht)
 
+###############################################################################
+# for fun, looking at LAI
+#plot(d.set$wsi,d.set$LAI)
+#obs.d <- d.set$LAI
+#preds.d <- d.set[c(12,21:46,51:55,57:61,65,66,71,76:79)]
+#fun <- VSURF(preds.d,obs.d)
+
+#fun$varselect.pred
+#names(preds.d)
+
+# covariates with LAI - CODE, tri, roughness, qmd, rdi, and nit
+#d.set$wsi <- (d.set$MeanWD-d.set$SWC2)*-1
+#plot(d.set$SWC2,d.set$LAI)
+
+#ch <- lm(LAI~roughness+SWC2,data=d.set)
+#summary(ch)
+#plot(ch)
+#d.set$fit <- predict(ch,d.set)
+#d.set$resid <- d.set$LAI-d.set$fit
+#plot(d.set$fit,d.set$resid)
+#abline(h=0)
+
+#plot(d.set$LAI~d.set$SWC2)
+#plot(d.set$MeanWD,d.set$LAI)
+#boxplot(LAI~CODE,data=d.set)
+
+# premer, end. 
+
+#str(d.set)
+#require(pscl)
+#iz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
+#dist="negbin",data=d.set)
+#summary(iz)
+
+#performance(iz)
+#plot(iz)
+#izz <- zeroinfl(deductclass~SPP+bal+steinman.si+qmd,
+#               dist="poisson",data=d.set)
+#AIC(iz,izz)
+#summary()
+
+#plot(deductclass ~ SPP, data = d.set, subset = deductclass > 0,
+#     log = "y", main = "Count (positive)")
+
+# SPP, DBH, rs, Densic# SPP, DBH, rs, htl
+
+# let's try something.... 
+d.set$deductclass[is.na(d.set$ded)] <- 0
+d.set$d.dummy <- as.factor(ifelse(d.set$deductclass>0,1,0))
+#vs2 <- VSURF(preds,d.set$d.dummy)
+
+vs2$varselect.pred
+names(preds)
+#sp, qmd , rs
+
+require(pscl)
+mod8 <- zeroinfl(deductclass ~dew + qmd + rs,
+                 dist = "negbin", data = d.set)
+mod8
+plot(mod8)
+require(DHARMa)
+
+mod9 <- zeroinfl(deductclass ~dew + qmd + rs,
+                 data = d.set)
+AIC(mod8,mod9)
+summary(mod8)
+# the VSURF looks great for the zero inflateed, now for the continuous
+
+much <- dplyr::filter(d.set,deductclass>0)
+
+require(leaps)
+much$deductclass <- as.integer(much$deductclass)
+plot(much$deductclass)
+#dredge <- regsubsets(deductclass~SPP+DBH.23+HT.23+LAI+CODE+elevation+
+#                                  tri+ tpi+roughness+slope+aspect+flowdir+tmin+tmean+ 
+#                                 tmax+ dew+vpdmax+vpdmin+McNab+Bolstad+Profile+Planform+
+#                                Winds10+Winds50+SWI+RAD+ppt+Parent+
+#                               dep+ex.k+nit+SWC2+MeanWD+Proportion+Min_depth+WD2000+
+#                              WD2020+WHC+ex.mg+ex.ca+ph+bapa+tpa+hd+bal+htl+ 
+#                             vicary.si+steinman.si+topht+qmd+rdi+rs+sdi,
+#                            data=much,method="exhaustive",really.big=TRUE)
+
+
+require(performance)
+performance(mod8)
+
+logLik(mod8)*-2
+BIC(mod8)
+mod8null <- update(mod8,.~1)
+pchisq(2*logLik(mod8)-logLik(mod8null),df=16,lower.tail = FALSE)/16
+
+expected.counts<-m2$fitted.values
+chisq.term<-(obs.counts-expected.counts)^2/expected.counts
+df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
+                Ek=expected.counts,ChiSqk=chisq.term)
+
+#spp, dbh, htl
