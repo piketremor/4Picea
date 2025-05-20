@@ -17,8 +17,11 @@ library(lme4)
 library(performance)
 library(ggplot2)
 
-setwd("G:/Shared drives/4Picea/4Picea/raw")
-setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
+setwd("C:/Users/ashley.lynn.carter/Documents/GitHub/4Picea/code/raw")
+
+
+#setwd("G:/Shared drives/4Picea/4Picea/raw")
+#setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 site <- read.csv("4Picea_30m.csv")
@@ -456,8 +459,10 @@ require(caTools)
 require(pscl)
 
 spruce$deductclass <- 5*as.integer((spruce$T_DEDUCT+(5/2))/5)
-
-hist(spruce$deductclass)
+hist(spruce$deductclass,
+     xlab = "Deduction (%)",
+     ylab = "Number of Trees",
+     main = "Distribution of Deduction Classes")
 d.set <- spruce
 d.set$T_DEDUCT[is.na(d.set$T_DEDUCT)] <- 999
 d.set <- dplyr::filter(d.set,T_DEDUCT<998)
@@ -605,8 +610,8 @@ al <- spruce.only[c(1:8,12,66:80,87)]
 head(al)
 pa <- left_join(nd2,al)
 head(pa)
-pa$top.prop <- pa$final.ht/pa$Top
-pa$bot.prop <- pa$fit.hcb/pa$Top
+pa$top.prop <- (pa$final.ht-pa$Low)/(pa$Top-pa$Low)
+pa$bot.prop <- (pa$fit.hcb-pa$Low)/(pa$Top-pa$Low)
 pa$crown.point <- ifelse(pa$prop>=pa$bot.prop&pa$prop<=pa$top.prop,1,0)
 head(pa)
 xyplot(crown.point~DBH.23|SPP,data=pa)
@@ -680,6 +685,72 @@ interval <- ca.avg.smooth %>%
     .groups = "drop"
   )
 interval
+
+#fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
+library(fitdistrplus)
+library(agricolae)
+
+beta <- function(ca) {
+  ca <- ca[ca$cr.points > 0, ]  
+  fit <- fitdist(ca$prop, "beta", method = "mme")  
+  return(data.frame(alpha = fit$estimate["shape1"], beta = fit$estimate["shape2"]))
+}
+
+beta.fit <- ca %>%
+  group_by(BLOCK, CODE, SPP) %>%
+  group_modify(~ beta(.x)) %>%
+  ungroup()
+
+print(beta.fit)
+
+CODE <- beta.fit %>%
+  filter(CODE == "RW", SPP %in% c("RS", "WS"))
+
+alpha.aov <- aov(alpha ~ SPP, data = CODE)
+beta.aov <- aov(beta ~ SPP, data = CODE)
+
+summary(alpha.aov)
+summary(beta.aov)
+
+#CODES with significant differences amongst SPP CPI
+#SPP df =1 (2-1); residual df =4 (6-2)
+
+#BN aov alpha p-value: 0.00054 ***
+#   aov beta p-value: 0.0667
+
+#BR aov alpha p-value: 0.0489*
+#   aov beta p-value: 0.48
+
+#BW aov alpha p-value: 0.416
+#   aov beta p-value: 0.493
+
+#NR aov alpha p-value: 0.339
+#   aov beta p-value: 0.282
+
+#NW aov alpha p-value: 0.00464 **
+#   aov beta p-value: 0.173
+
+#RW aov alpha p-value: 0.00412 **
+#   aov beta p-value: 0.0184 * 
+
+
+library(multcomp)
+
+beta.fit$SPP <- as.factor(beta.fit$SPP)
+beta.fit$CODE <- as.factor(beta.fit$CODE)
+
+amod <- lm(alpha ~ SPP + CODE, data = beta.fit)  
+bmod <- lm(beta ~ SPP + CODE, data = beta.fit)  
+
+summary(amod)
+summary(bmod)
+
+alpha.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) 
+summary(alpha.glht, p.adjust.method = "bonferroni")
+
+beta.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
+summary(beta.glht, p.adjust.method = "bonferroni") 
+
 
 #-------------------------------------------------------------------------------
 # Volume predictions for all for just mixtures 
@@ -934,109 +1005,11 @@ ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
     colour = "Treatment",
     linetype = "Treatment"
   ) +
+  coord_cartesian(ylim = c(0, 300)) +
   theme_bw(18) +
   theme(
     plot.title = element_text(hjust = 0.5)  # centers the title
   )
-
-
-#fit beta distribution for cr.points use ca dataframe (includes each CODE rep df=2)
-library(fitdistrplus)
-library(agricolae)
-
-beta <- function(ca) {
-  ca <- ca[ca$cr.points > 0, ]  
-  fit <- fitdist(ca$prop, "beta", method = "mme")  
-  return(data.frame(alpha = fit$estimate["shape1"], beta = fit$estimate["shape2"]))
-}
-
-beta.fit <- ca %>%
-  group_by(BLOCK, CODE, SPP) %>%
-  group_modify(~ beta(.x)) %>%
-  ungroup()
-
-print(beta.fit)
-
-CODE <- beta.fit %>%
-  filter(CODE == "RW", SPP %in% c("RS", "WS"))
-
-#SPP <- beta.fit %>%
-  #filter(SPP == "RS" & CODE %in% c("R", "BR", "NR", "RW"))
-
-alpha.aov <- aov(alpha ~ SPP, data = CODE)
-beta.aov <- aov(beta ~ SPP, data = CODE)
-
-summary(alpha.aov)
-summary(beta.aov)
-
-alpha.tukey <- HSD.test(alpha.aov, "SPP", group = TRUE)
-beta.tukey <- HSD.test(beta.aov, "SPP", group = TRUE)
-
-alpha.tukey
-beta.tukey
-
-#CODES with significant differences amongst SPP final.ht distributions
-#SPP df =1 (2-1); residual df =4 (6-2)
-
-#BN aov alpha p-value: 0.0186 *
-#   aov beta p-value: 0.0752 
-#   tukey alpha: a b
-#   tukey beta: a a
-
-#BR aov alpha p-value: 0.12
-#   aov beta p-value: 0.399
-#   tukey alpha: a a
-#   tukey beta: a a
-
-#BW aov alpha p-value: 0.282
-#   aov beta p-value: 0.497
-#   tukey alpha: a a
-#   tukey beta: a a
-
-#NR aov alpha p-value: 0.525
-#   aov beta p-value: 0.335
-#   tukey alpha: a a
-#   tukey beta: a a
-
-#NW aov alpha p-value: 0.00355 *
-#   aov beta p-value: 0.697
-#   tukey alpha: a b
-#   tukey beta: a a
-
-#RW aov alpha p-value: 0.141
-#   aov beta p-value: 0.0184 * 
-#   tukey alpha: a a
-#   tukey beta: a b
-
-library(multcomp)
-
-beta.fit$SPP <- as.factor(beta.fit$SPP)
-beta.fit$CODE <- as.factor(beta.fit$CODE)
-
-amod <- lm(alpha ~ SPP + CODE, data = beta.fit)  
-bmod <- lm(beta ~ SPP + CODE, data = beta.fit)  
-
-summary(amod)
-summary(bmod)
-
-alpha.glht <- glht(amod, linfct = mcp(CODE = "Tukey")) 
-summary(alpha.glht, p.adjust.method = "bonferroni")
-
-beta.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
-summary(beta.glht, p.adjust.method = "bonferroni") 
-
-# Test for differences amongst SPP in each CODE individually
-
-# Shape
-amod <- lm(alpha ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
-alpha.glht <- glht(amod, linfct = mcp(SPP = "Tukey"))
-summary(alpha.glht, adjust = "bonferroni")
-
-
-# Scale
-bmod <- lm(beta ~ SPP, data = beta.fit[beta.fit$CODE == "RW", ])  
-beta.glht <- glht(bmod, linfct = mcp(SPP = "Tukey"))
-summary(beta.glht, p.adjust.method = "bonferroni") 
 
 #-------------------------------------------------------------------------------
 # Overyielding & Transgressive Overyielding, looking at the plot level
