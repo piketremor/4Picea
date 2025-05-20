@@ -19,9 +19,8 @@ library(ggplot2)
 
 setwd("C:/Users/ashley.lynn.carter/Documents/GitHub/4Picea/code/raw")
 
-
-#setwd("G:/Shared drives/4Picea/4Picea/raw")
-#setwd("~/Google Drive/Shared drives/4PICEA/4PICEA/raw")
+setwd("G:/Shared drives/4Picea/4Picea/raw")
+setwd("~/Documents/GitHub/4Picea/code/raw")
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
 site <- read.csv("4Picea_30m.csv")
@@ -863,9 +862,9 @@ AIC(lm1,lm2)
 
 xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
 
-require(devtools)
-install_github("ProcessMiner/nlcor")
-library(nlcor)
+#require(devtools)
+#install_github("ProcessMiner/nlcor")
+#library(nlcor)
 
 c <- nlcor(bl.c$AUC,bl.c$LAI)
 
@@ -902,15 +901,21 @@ bl.t <- bl.t %>%
 
 names(bl.t)
 
+
+b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
+# Exact lambda
+lambda <- b$x[which.max(b$y)]
+lambda
+
+library(fitdistrplus)
+library(agricolae)
+
+descdist(bl.t$volume.ha, boot = 1000)
+plot(density(bl.t$volume.ha))
+plot(density(exp(bl.t$volume.ha)))
+plot(density(sqrt(bl.t$volume.ha)))
+
 require(leaps)
-modz <- regsubsets(volume.ha~BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+LAI+
-                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
-                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
-                   data=bl.t)
-
-summary(modz)
-
 library(MASS)
 b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
 # Exact lambda
@@ -939,17 +944,37 @@ summary(modz2)
 
 #bapa + tpa + qmd + rd + CCF
 
-full.m1 <- lm(sq.vol~rd+CODE*aspect, data=bl.t) #LAI was significant prior to additional of structural and density attributes
+full.m1 <- lm(sq.vol~rd*CODE, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
 performance(full.m1)
 require(car)
 vif(full.m1)
 AIC(full.m1)
 
+str(bl.t)
+bl.t$BLOCK <- as.factor(bl.t$BLOCK)
 full.mm <- lme(sq.vol~rd+CODE*aspect,data=bl.t,
                random=~1|BLOCK,
                na.action="na.omit")
 AIC(full.mm,full.m1)
+
+full.m2 <- lm(sq.vol~bapa*SWI+CODE,data = bl.t)
+summary(full.m2)
+AIC(full.m1,full.m2)
+
+performance(full.m1)
+performance(full.m2)
+
+
+full.av <- aov(full.m1)
+summary(full.av)
+
+ls.test <- LSD.test(full.av,p.adj="bon",trt="CODE")
+ls.test
+
+
+unique(bl.t$CODE)
+
 
 # full.m1 is the final model. 
 
@@ -957,6 +982,10 @@ AIC(full.mm,full.m1)
 bl.t$new.fit.vol <- predict(full.m1, bl.t)
 bl.t$new.fit.vol <- bl.t$new.fit.vol^2  #back transform sqrt(vol) and predict on dataset
 view(bl.t)
+
+
+
+
 
 
 library(multcomp)
