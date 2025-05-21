@@ -21,8 +21,12 @@ setwd("C:/Users/ashley.lynn.carter/Documents/GitHub/4Picea/code/raw")
 
 setwd("G:/Shared drives/4Picea/4Picea/raw")
 setwd("~/Documents/GitHub/4Picea/code/raw")
+
 picea <- read.csv("4Picea.csv")
 stemform <- read.csv("StemForm.csv")
+stemform <- stemform %>%
+  mutate(TREE = as.character(TREE)) %>%
+  distinct(BLOCK, PLOT, TREE, .keep_all = TRUE) #duplicates in stem form data set by TREE
 site <- read.csv("4Picea_30m.csv")
 
 head(picea)
@@ -33,7 +37,8 @@ names(picea)
 picea <- picea %>%
   mutate(TREE = as.character(TREE)) %>%
   left_join(stemform %>% mutate(TREE = as.character(TREE)), by = c("BLOCK", "PLOT", "TREE", "SPP")) %>%
-  left_join(site, by = c("BLOCK", "PLOT"))
+  left_join(site, by = c("BLOCK", "PLOT")) %>%
+  filter(SPP %in% c("BS", "NS", "RS", "WS"), CODE != "C")
 
 #-------------------------------------------------------------------------------
 #clean data
@@ -343,34 +348,9 @@ picea <- picea %>%
 --------------------------------------------------------------------
 # Site Index - (calculated at tree level, summarize by Block and Plot)
 #-------------------------------------------------------------------------------
-sum(is.na(picea$final.ht))  # Number of missing values in final.ht
-picea <- picea %>%
-  filter(!is.na(final.ht))
-
-#vicary.site
-picea <- picea%>%
-  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=final.ht, age=28))
-
-picea %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(mean.vicary.si = mean(vicary.si, na.rm = TRUE))
-
-#steinman.site
-picea <- picea%>%
-  mutate(steinman.si=mapply(steinman.site, SPP="RS", HT=final.ht, AGE=28))
-
-picea %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
-
-library(dplyr)
-library(writexl)
-
-# Recalculate Vicary site index
 picea <- picea %>%
   mutate(vicary.si = mapply(vicary.site, SPP = "RS", ht = final.ht, age = 28))
 
-# Recalculate Steinman site index
 picea <- picea %>%
   mutate(steinman.si = mapply(steinman.site, SPP = "RS", HT = final.ht, AGE = 28))
 
@@ -420,6 +400,37 @@ spruce.rd_summary <- spruce.rd %>%
 picea <- picea %>%
   left_join(spruce.rd_summary, by = c("BLOCK", "PLOT"))
 
+
+#-------------------------------------------------------------------------------
+# Relative density index by SPP within each PLOT
+#-------------------------------------------------------------------------------
+picea <- picea %>%
+  mutate(rdi = mapply(relative.density.index, bapa, qmd))
+
+# summarize RDI by PLOT and SPP
+rd.species.plot <- picea %>%
+  group_by(BLOCK, PLOT, SPP) %>%
+  summarise(rd.spp = sum(rdi, na.rm = TRUE), .groups = "drop")
+
+# calculate total rdi by PLOT
+rd.plot <- rd.species.plot %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(rd.total = sum(rd.spp, na.rm = TRUE), .groups = "drop")
+
+#join and calculate RD % by SPP
+rd <- rd.species.plot %>%
+  left_join(rd.plot, by = c("BLOCK", "PLOT")) %>%
+  mutate(rd = rd.spp / rd.total) %>%
+  select(BLOCK, PLOT, SPP, rd)
+
+
+rd.1 <- rd %>% #create SPP columns
+  pivot_wider(names_from = SPP, values_from = rd, names_prefix = "", values_fill = 0) %>%
+  rename_with(.fn = ~ paste0(.x, ".rd"), .cols = c("BS", "NS", "RS", "WS"))
+
+picea <- picea %>%
+  left_join(rd.1, by = c("BLOCK", "PLOT"))
+
 #-------------------------------------------------------------------------------
 # Relative spacing - (plot level)
 #-------------------------------------------------------------------------------
@@ -431,6 +442,7 @@ picea <- picea %>%
 picea %>%
   group_by(BLOCK, PLOT) %>%
   summarise_at(vars(rs), list(name = mean))
+
 #-------------------------------------------------------------------------------
 # Stand density index - (plot level)
 #-------------------------------------------------------------------------------
@@ -471,17 +483,13 @@ require(GreenTimbMerch)
 
 picea$dbh.cm <- picea$DBH.23*2.54
 picea$ht.m <- picea$ht.fit/3.28
-spruce <- dplyr::filter(picea,SPP=="NS"|SPP=="WS"|SPP=="RS"|SPP=="BS")
+spruce <- picea %>%
+  dplyr::filter(SPP %in% c("NS", "WS", "RS", "BS"),
+                CODE != "C")
+
 
 spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht.m,
                             Planted=TRUE)
-#convert to m3/ha
-spruce <- spruce %>%
-  group_by(BLOCK,PLOT) %>%
-  mutate(
-    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
-  )
-
 
 #convert to ft3/ac
 spruce <- spruce %>%
@@ -489,6 +497,42 @@ spruce <- spruce %>%
   mutate(
     p.vol.ac = p.vol.ha * 14.28
   )
+
+#convert to m3/ha
+spruce <- spruce %>%
+  group_by(BLOCK,PLOT) %>%
+  mutate(
+    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
+  )
+
+picea <- picea %>%
+  left_join(spruce.vol, by = c("BLOCK", "PLOT"))
+
+#------------------------------------------------------------------------------
+# Relative volume (p.vol.ha) by SPP within each PLOT
+#------------------------------------------------------------------------------
+#summary of volume per species per plot
+vol.spp.plot <- spruce %>%
+  group_by(BLOCK, PLOT, SPP) %>%
+  summarise(vol.spp = sum(p.vol.ha, na.rm = TRUE), .groups = "drop")
+
+# total plot volume
+vol.plot <- vol.spp.plot %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(vol.total = sum(vol.spp, na.rm = TRUE), .groups = "drop")
+
+# volume percent by SPP
+vol <- vol.spp.plot %>%
+  left_join(vol.plot, by = c("BLOCK", "PLOT")) %>%
+  mutate(vol.rel = vol.spp / vol.total) %>%
+  select(BLOCK, PLOT, SPP, vol.rel)
+
+vol.1 <- vol %>%
+  pivot_wider(names_from = SPP, values_from = vol.rel, names_prefix = "", values_fill = 0) %>%
+  rename_with(.fn = ~ paste0(.x, ".vol"), .cols = c("BS", "NS", "RS", "WS"))
+
+picea <- picea %>%
+  left_join(vol.1, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
 # Variable selection procedures using VSURF package for integer response variable
@@ -567,33 +611,23 @@ spruce$final.vol <- spruce$p.vol.ac-spruce$adj.vol
 spruce <- spruce %>%
   mutate(merch.vol.ha = final.vol * 0.0698)
 
-#needed to average it since orginally calculate at tree-level
-final.vol.ha <- spruce %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(final.vol.ha.avg = mean(final.vol.ha, na.rm = TRUE),  
-            .groups = 'drop')
 
-spruce <- spruce %>%
-  left_join(final.vol.ha, by = c("BLOCK", "PLOT"))
-write_xlsx(spruce, path = "volume.xlsx")
+#vol.summary <- spruce %>%
+#  group_by(BLOCK, PLOT,CODE) %>%
+#  summarise(
+#    new_vol_m3 = mean(new.vol.m3, na.rm = TRUE),
+#    p_vol_ha = mean(p.vol.ha, na.rm = TRUE),
+#    p_vol_ac = mean(p.vol.ac, na.rm = TRUE),
+#    deduct_class = mean(deductclass, na.rm = TRUE),
+#    fit_deduction = mean(fit.deduction, na.rm = TRUE),
+#    fit_deduct_class = mean(fit.deduct.class, na.rm = TRUE),
+#    adj_vol = mean(adj.vol, na.rm = TRUE),
+#    final_vol = mean(final.vol, na.rm = TRUE),
+#    merch_vol_ha = mean(merch.vol.ha, na.rm = TRUE),
+#    .groups = "drop"
+#  )
 
-vol.summary <- spruce %>%
-  group_by(BLOCK, PLOT) %>%
-  summarise(
-    new_vol_m3 = mean(new.vol.m3, na.rm = TRUE),
-    p_vol_ha = mean(p.vol.ha, na.rm = TRUE),
-    p_vol_ac = mean(p.vol.ac, na.rm = TRUE),
-    deduct_class = mean(deductclass, na.rm = TRUE),
-    fit_deduction = mean(fit.deduction, na.rm = TRUE),
-    fit_deduct_class = mean(fit.deduct.class, na.rm = TRUE),
-    adj_vol = mean(adj.vol, na.rm = TRUE),
-    final_vol = mean(final.vol, na.rm = TRUE),
-    final_vol_ha = mean(final.vol.ha, na.rm = TRUE),
-    merch_vol_ha = mean(merch.vol.ha, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-write_xlsx(vol.summary, path = "volume.plot.summary.xlsx")
+#write_xlsx(vol.summary, path = "volume.plot.summary.xlsx")
 #use vol.summary for next analysis
 
 #-------------------------------------------------------------------------------
