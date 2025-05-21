@@ -60,6 +60,10 @@ species.prop <- picea %>%
   select(BLOCK, PLOT, SPP, Proportion)
 
 print(species.prop)
+species.prop %>% print(n = Inf)
+
+#library(writexl)
+#write_xlsx(species.prop, path = "species_prop.xlsx")
 
 picea <- picea %>%
   left_join(species.prop, by = c("BLOCK", "PLOT", "SPP"))
@@ -85,6 +89,22 @@ bapa.tpa.summary <- picea %>%
     tpa = sum(tree.factor, na.rm = TRUE)              
   )
 
+#bapa.tpa.summary %>% print(n = Inf)
+#write_xlsx(bapa.tpa.summary, path = "bapa.tpa.plot.summary.xlsx")
+
+#library(dplyr)
+
+#BR.dbh <- picea %>%
+#  filter(CODE == "BR") %>%
+#  group_by(BLOCK, PLOT) %>%
+#  summarise(
+#    min_DBH = min(DBH.23, na.rm = TRUE),
+#    max_DBH = max(DBH.23, na.rm = TRUE),
+#    .groups = 'drop'
+#  )
+
+#print(BR.dbh)
+
 picea <- picea %>%
   left_join(bapa.tpa.summary, by = c("uid", "CODE", "BLOCK", "PLOT"))
 
@@ -106,46 +126,46 @@ xyplot(bapa~Proportion|CODE,data=picea)
 #-------------------------------------------------------------------------------
 # #DBH distribution
 #-------------------------------------------------------------------------------
-picea$dbh.class <- 2*as.integer((picea$DBH.23+(2/2))/2)
+#picea$dbh.class <- 2*as.integer((picea$DBH.23+(2/2))/2)
 
-picea.dist <- picea %>%
-  filter(STATUS.23 == "1") %>%
-  mutate(DiameterClass = cut(DBH.23, 
-                             breaks = seq(0, 15, by = 1), 
-                             right = FALSE)) %>%
-  group_by(dbh.class) %>%
-  summarise(Count = n(), 
-            .groups = 'drop')
+#picea.dist <- picea %>%
+#  filter(STATUS.23 == "1") %>%
+#  mutate(DiameterClass = cut(DBH.23, 
+#                             breaks = seq(0, 15, by = 1), 
+#                             right = FALSE)) %>%
+#  group_by(dbh.class) %>%
+#  summarise(Count = n(), 
+#            .groups = 'drop')
 
-ggplot(picea.dist, aes(x = dbh.class, y = Count, fill = dbh.class)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  labs(title = "Diameter Class Distribution",
-       x = "Diameter Classes (DBH in inches)",
-       y = "Number of Trees") +
-  scale_x_discrete(drop = FALSE) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#ggplot(picea.dist, aes(x = dbh.class, y = Count, fill = dbh.class)) +
+#  geom_bar(stat = "identity", show.legend = FALSE) +
+#  labs(title = "Diameter Class Distribution",
+#       x = "Diameter Classes (DBH in inches)",
+#       y = "Number of Trees") +
+#  scale_x_discrete(drop = FALSE) +
+#  theme_minimal() +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1)
 
 # Diameter distribution by CODE
-picea$dbh.class <- 2 * as.integer((picea$DBH.23 + (2 / 2)) / 2)
+#picea$dbh.class <- 2 * as.integer((picea$DBH.23 + (2 / 2)) / 2)
 
-picea.dist <- picea %>%
-  filter(STATUS.23 == "1") %>%
-  mutate(DiameterClass = cut(DBH.23, 
-                             breaks = seq(0, max(picea$DBH.23, na.rm = TRUE), by = 2), 
-                             right = FALSE)) %>%
-  group_by(CODE, DiameterClass) %>%
-  summarise(Count = n(), 
-            .groups = 'drop')
+#picea.dist <- picea %>%
+#  filter(STATUS.23 == "1") %>%
+#  mutate(DiameterClass = cut(DBH.23, 
+#                             breaks = seq(0, max(picea$DBH.23, na.rm = TRUE), by = 2), 
+#                             right = FALSE)) %>%
+#  group_by(CODE, DiameterClass) %>%
+#  summarise(Count = n(), 
+#            .groups = 'drop')
 
-ggplot(picea.dist, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
-  geom_bar(stat = "identity", show.legend = FALSE) +
-  facet_wrap(~ CODE) +  # Create separate plots for each CODE
-  labs(x = "Diameter Class (DBH in inches)",
-       y = "Number of Trees") +
-  scale_x_discrete(labels = c("0-2", "2-4", "4-6", "6-8", "8-10", "10-12"), drop = FALSE) +  
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate labels for better readability
+#ggplot(picea.dist, aes(x = DiameterClass, y = Count, fill = DiameterClass)) +
+#  geom_bar(stat = "identity", show.legend = FALSE) +
+#  facet_wrap(~ CODE) +  # Create separate plots for each CODE
+#  labs(x = "Diameter Class (DBH in inches)",
+#       y = "Number of Trees") +
+#  scale_x_discrete(labels = c("0-2", "2-4", "4-6", "6-8", "8-10", "10-12"), drop = FALSE) +  
+#  theme_minimal() +
+#  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate labels for better readability
 
 #-------------------------------------------------------------------------------
 # Generating height model
@@ -343,6 +363,27 @@ picea %>%
   group_by(BLOCK, PLOT) %>%
   summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
 
+library(dplyr)
+library(writexl)
+
+# Recalculate Vicary site index
+picea <- picea %>%
+  mutate(vicary.si = mapply(vicary.site, SPP = "RS", ht = final.ht, age = 28))
+
+# Recalculate Steinman site index
+picea <- picea %>%
+  mutate(steinman.si = mapply(steinman.site, SPP = "RS", HT = final.ht, AGE = 28))
+
+#si_summary <- picea %>%
+#  group_by(BLOCK, PLOT) %>%
+#  summarise(
+#    mean.vicary.si = mean(vicary.si, na.rm = TRUE),
+#    mean.steinman.si = mean(steinman.si, na.rm = TRUE),
+#    .groups = "drop"
+#  )
+#write_xlsx(si_summary, path = "site_index_summary.xlsx")
+
+
 #-------------------------------------------------------------------------------
 # Top Height/HT40 (vicary height) - (tree or plot level?)
 #-------------------------------------------------------------------------------
@@ -524,7 +565,7 @@ spruce$final.vol <- spruce$p.vol.ac-spruce$adj.vol
 
 #convert final.vol to m3/ha
 spruce <- spruce %>%
-  mutate(final.vol.ha = final.vol * 0.0698)
+  mutate(merch.vol.ha = final.vol * 0.0698)
 
 #needed to average it since orginally calculate at tree-level
 final.vol.ha <- spruce %>%
@@ -534,6 +575,26 @@ final.vol.ha <- spruce %>%
 
 spruce <- spruce %>%
   left_join(final.vol.ha, by = c("BLOCK", "PLOT"))
+write_xlsx(spruce, path = "volume.xlsx")
+
+vol.summary <- spruce %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(
+    new_vol_m3 = mean(new.vol.m3, na.rm = TRUE),
+    p_vol_ha = mean(p.vol.ha, na.rm = TRUE),
+    p_vol_ac = mean(p.vol.ac, na.rm = TRUE),
+    deduct_class = mean(deductclass, na.rm = TRUE),
+    fit_deduction = mean(fit.deduction, na.rm = TRUE),
+    fit_deduct_class = mean(fit.deduct.class, na.rm = TRUE),
+    adj_vol = mean(adj.vol, na.rm = TRUE),
+    final_vol = mean(final.vol, na.rm = TRUE),
+    final_vol_ha = mean(final.vol.ha, na.rm = TRUE),
+    merch_vol_ha = mean(merch.vol.ha, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write_xlsx(vol.summary, path = "volume.plot.summary.xlsx")
+#use vol.summary for next analysis
 
 #-------------------------------------------------------------------------------
 # HCB Model
@@ -560,7 +621,6 @@ spruce <- spruce %>%
 hcb.mod1 <- lm(HCB.23 ~final.ht + DBH.23  + vpdmax + factor(SPP), data = picea) 
 summary(hcb.mod1)
 performance(hcb.mod1)
-AIC(hcb.mod4)
 
 hcb.mod4 <- lm(HCB.23 ~final.ht + DBH.23 +factor(SPP) + factor(CODE),data = picea) #log final.ht or DBH.23 did not improve AIC
 summary(hcb.mod4)
@@ -998,7 +1058,7 @@ cld(vol.glht, level = 0.05, decreasing = TRUE)
 # volume is transformed (sqrt)
 library(ggplot2)
 library(ggeffects)
-mydf2 <- ggpredict(full.m1,terms=c("rd","CODE","aspect"))
+mydf2 <- ggpredict(full.m1,terms=c("rd","CODE"))
 
 #png("~/Desktop/SMC_Sinuosity_Model_Output.png",units='in',height=5.5,width=14,res=1000)
 #theme_set(theme_bw(16))
@@ -1017,7 +1077,7 @@ ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
   #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
 
 #back transform volume
-mydf2 <- ggpredict(full.m1, terms = c("rd", "CODE", "aspect"))
+mydf2 <- ggpredict(full.m1, terms = c("rd", "CODE","aspect"))
 
 # Back-transform from square root
 mydf2$predicted <- mydf2$predicted^2
@@ -1038,6 +1098,36 @@ ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
   theme_bw(18) +
   theme(
     plot.title = element_text(hjust = 0.5)  # centers the title
+  )
+
+
+# Back-transform volume
+mydf2 <- ggpredict(full.m1, terms = c("rd", "CODE"))
+
+# Back-transform from square root
+mydf2$predicted <- mydf2$predicted^2
+mydf2$conf.low <- mydf2$conf.low^2
+mydf2$conf.high <- mydf2$conf.high^2
+
+# Rename columns for clarity (if necessary)
+# str(mydf2) to check names; assuming 'x' = rd and 'group' = CODE
+# If not, adjust accordingly
+
+ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
+  geom_line(aes(linetype = group), size = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = group), alpha = 0.2, colour = NA) +
+  ggtitle(expression(paste("Aspect (", degree, ")"))) +
+  labs(
+    x = "Relative Density (%)",
+    y = expression(paste("Volume (", m^3, " ", ha^{-1}, ")")),
+    colour = "Treatment",
+    linetype = "Treatment",
+    fill = "Treatment"
+  ) +
+  coord_cartesian(ylim = c(0, 300)) +
+  theme_bw(base_size = 18) +
+  theme(
+    plot.title = element_text(hjust = 0.5)
   )
 
 #-------------------------------------------------------------------------------
