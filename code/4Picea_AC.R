@@ -636,7 +636,52 @@ vol.summary <- spruce %>%
   )
 
 #write_xlsx(vol.summary, path = "volume.plot.summary.xlsx")
-#use vol.summary for next analysis
+
+
+# Test for significant differences amongst p.vol.ha and merch.vol.ha by CODE
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(emmeans)
+
+pie <- spruce %>%
+  dplyr::select(CODE, p.vol.ha, merch.vol.ha) %>%
+  pivot_longer(cols = c(p.vol.ha, merch.vol.ha),
+               names_to = "VolumeType",
+               values_to = "Volume")
+pie$VolumeType <- as.factor(pie$VolumeType)
+
+# run two-way ANOVA with interaction
+anova.model <- aov(Volume ~ CODE * VolumeType, data = pie)
+summary(anova.model)
+
+# post-hoc pairwise comparisons
+library(emmeans)
+emm <- emmeans(anova.model, ~ VolumeType | CODE)
+pairwise.comparisons <- contrast(emm, method = "pairwise", adjust = "tukey")
+summary(pairwise.comparisons)
+
+#summarize for graphic
+volume.summary <- pie %>%
+  group_by(CODE, VolumeType) %>%
+  summarise(mean.volume = mean(Volume, na.rm = TRUE),
+            se.volume = sd(Volume, na.rm = TRUE) / sqrt(n()),
+            .groups = "drop")
+
+volume.summary$VolumeType <- factor(volume.summary$VolumeType, levels = c("p.vol.ha", "merch.vol.ha"))
+
+ggplot(volume.summary, aes(x = CODE, y = mean.volume, fill = VolumeType)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.9)) +
+  geom_errorbar(aes(ymin = mean.volume - se.volume, ymax = mean.volume + se.volume),
+                position = position_dodge(width = 0.9),
+                width = 0.2) +
+  scale_fill_manual(values = c("p.vol.ha" = "grey", "merch.vol.ha" = "blue"),
+                    labels = c("p.vol.ha" = "Volume", "merch.vol.ha" = "Merchantable Volume")) +  # Set custom labels
+  labs(x = "Treatment",
+       y = "Volume (m³ ha-1)",
+       fill = "Volume Type") +
+  theme_minimal()
+
 
 #-------------------------------------------------------------------------------
 # HCB Model
