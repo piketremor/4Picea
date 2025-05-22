@@ -53,6 +53,7 @@ picea$uid <- paste0(picea$BLOCK,".",picea$PLOT)
 require(dplyr)
 require(nlme)
 require(tidyr)
+
 #-------------------------------------------------------------------------------
 #calculate the proportion of each species by plot
 #-------------------------------------------------------------------------------
@@ -96,8 +97,6 @@ bapa.tpa.summary <- picea %>%
 
 #bapa.tpa.summary %>% print(n = Inf)
 #write_xlsx(bapa.tpa.summary, path = "bapa.tpa.plot.summary.xlsx")
-
-#library(dplyr)
 
 #BR.dbh <- picea %>%
 #  filter(CODE == "BR") %>%
@@ -189,7 +188,7 @@ ht.mod <-  nlme(HT.23 ~ 4.5+exp(a+b/(DBH.23+1)),
                 data = spruce,
                 fixed = a + b ~ 1,
                 #random = a + b ~ 1 | SPP,  # Random intercept and slope for both
-                random = a + b ~ 1 | BLOCK/PLOT/SPP,  
+                random = a + b ~ 1 | BLOCK/SPP,  
                 na.action = na.pass,
                 start = c(a = 4.5, b = -6),
                 control = nlmeControl(returnObject = TRUE, msMaxIter = 10000, maxIter = 5000))
@@ -293,9 +292,6 @@ spruce.bal$bal[is.na(spruce.bal$bal)] <- 0
 xyplot(bal~DBH.23|SPP,data=spruce.bal)
 xyplot(bal~DBH.23|CODE,data=spruce.bal)
 
-xyplot(bal ~ DBH.23 | CODE,
-       data = spruce.bal,
-       subset = SPP %in% c("R", "RW", "W", "N","NR","NW","B","BN","BR","BW"))
 xyplot(bal ~ DBH.23 | CODE, 
        data = spruce.bal, 
        subset = CODE %in% c("R", "RW", "W", "N", "NR", "NW", "B", "BN", "BR", "BW"),
@@ -348,21 +344,25 @@ picea <- picea %>%
 --------------------------------------------------------------------
 # Site Index - (calculated at tree level, summarize by Block and Plot)
 #-------------------------------------------------------------------------------
+sum(is.na(picea$final.ht))  # Number of missing values in final.ht
 picea <- picea %>%
-  mutate(vicary.si = mapply(vicary.site, SPP = "RS", ht = final.ht, age = 28))
+  filter(!is.na(final.ht))
 
-picea <- picea %>%
-  mutate(steinman.si = mapply(steinman.site, SPP = "RS", HT = final.ht, AGE = 28))
+#vicary.site
+picea <- picea%>%
+  mutate(vicary.si=mapply(vicary.site,SPP="RS",ht=final.ht, age=28))
 
-#si_summary <- picea %>%
-#  group_by(BLOCK, PLOT) %>%
-#  summarise(
-#    mean.vicary.si = mean(vicary.si, na.rm = TRUE),
-#    mean.steinman.si = mean(steinman.si, na.rm = TRUE),
-#    .groups = "drop"
-#  )
-#write_xlsx(si_summary, path = "site_index_summary.xlsx")
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(mean.vicary.si = mean(vicary.si, na.rm = TRUE))
 
+#steinman.site
+picea <- picea%>%
+  mutate(steinman.si=mapply(steinman.site, SPP="RS", HT=final.ht, AGE=28))
+
+picea %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(mean.steinman.si = mean(steinman.si, na.rm = TRUE))
 
 #-------------------------------------------------------------------------------
 # Top Height/HT40 (vicary height) - (tree or plot level?)
@@ -393,12 +393,12 @@ picea <- picea %>%
 spruce.rd <- picea %>%
   mutate(rdi = mapply(relative.density.index, bapa, qmd))
 
-spruce.rd_summary <- spruce.rd %>%
+spruce.rd.summary <- spruce.rd %>%
   group_by(BLOCK, PLOT) %>%
   summarise(rdi = mean(rdi, na.rm = TRUE))  # Ensure only one value per BLOCK-PLOT
 
 picea <- picea %>%
-  left_join(spruce.rd_summary, by = c("BLOCK", "PLOT"))
+  left_join(spruce.rd.summary, by = c("BLOCK", "PLOT"))
 
 
 #-------------------------------------------------------------------------------
@@ -428,7 +428,7 @@ rd.1 <- rd %>% #create SPP columns
   pivot_wider(names_from = SPP, values_from = rd, names_prefix = "", values_fill = 0) %>%
   rename_with(.fn = ~ paste0(.x, ".rd"), .cols = c("BS", "NS", "RS", "WS"))
 
-picea <- picea %>%
+site <- site %>%
   left_join(rd.1, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
@@ -490,23 +490,31 @@ spruce <- picea %>%
 
 spruce$new.vol.m3 <- mapply(KozakTreeVol,'ib',spruce$SPP,spruce$dbh.cm,spruce$ht.m,
                             Planted=TRUE)
+spruce <- spruce %>%
+  group_by(BLOCK, PLOT) %>%
+  mutate(
+    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
+  )
 
-#convert to ft3/ac
 spruce <- spruce %>%
   group_by(BLOCK, PLOT) %>%
   mutate(
     p.vol.ac = p.vol.ha * 14.28
   )
 
-#convert to m3/ha
-spruce <- spruce %>%
-  group_by(BLOCK,PLOT) %>%
+spruce.vol <- spruce %>%
+  group_by(BLOCK, PLOT) %>%
+  summarise(
+    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105,
+    .groups = "drop"
+  ) %>%
   mutate(
-    p.vol.ha = sum(new.vol.m3, na.rm = TRUE) * 10 * 2.47105
+    p.vol.ac = p.vol.ha * 14.28
   )
 
 picea <- picea %>%
   left_join(spruce.vol, by = c("BLOCK", "PLOT"))
+
 
 #------------------------------------------------------------------------------
 # Relative volume (p.vol.ha) by SPP within each PLOT
@@ -531,7 +539,7 @@ vol.1 <- vol %>%
   pivot_wider(names_from = SPP, values_from = vol.rel, names_prefix = "", values_fill = 0) %>%
   rename_with(.fn = ~ paste0(.x, ".vol"), .cols = c("BS", "NS", "RS", "WS"))
 
-picea <- picea %>%
+site <- site %>%
   left_join(vol.1, by = c("BLOCK", "PLOT"))
 
 #-------------------------------------------------------------------------------
@@ -612,20 +620,20 @@ spruce <- spruce %>%
   mutate(merch.vol.ha = final.vol * 0.0698)
 
 
-#vol.summary <- spruce %>%
-#  group_by(BLOCK, PLOT,CODE) %>%
-#  summarise(
-#    new_vol_m3 = mean(new.vol.m3, na.rm = TRUE),
-#    p_vol_ha = mean(p.vol.ha, na.rm = TRUE),
-#    p_vol_ac = mean(p.vol.ac, na.rm = TRUE),
-#    deduct_class = mean(deductclass, na.rm = TRUE),
-#    fit_deduction = mean(fit.deduction, na.rm = TRUE),
-#    fit_deduct_class = mean(fit.deduct.class, na.rm = TRUE),
-#    adj_vol = mean(adj.vol, na.rm = TRUE),
-#    final_vol = mean(final.vol, na.rm = TRUE),
-#    merch_vol_ha = mean(merch.vol.ha, na.rm = TRUE),
-#    .groups = "drop"
-#  )
+vol.summary <- spruce %>%
+  group_by(BLOCK, PLOT,CODE) %>%
+  summarise(
+    new_vol_m3 = mean(new.vol.m3, na.rm = TRUE),
+    p_vol_ha = mean(p.vol.ha, na.rm = TRUE),
+    p_vol_ac = mean(p.vol.ac, na.rm = TRUE),
+    deduct_class = mean(deductclass, na.rm = TRUE),
+    fit_deduction = mean(fit.deduction, na.rm = TRUE),
+    fit_deduct_class = mean(fit.deduct.class, na.rm = TRUE),
+    adj_vol = mean(adj.vol, na.rm = TRUE),
+    final_vol = mean(final.vol, na.rm = TRUE),
+    merch_vol_ha = mean(merch.vol.ha, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 #write_xlsx(vol.summary, path = "volume.plot.summary.xlsx")
 #use vol.summary for next analysis
@@ -844,124 +852,6 @@ summary(alpha.glht, p.adjust.method = "bonferroni")
 beta.glht <- glht(bmod, linfct = mcp(CODE = "Tukey"))
 summary(beta.glht, p.adjust.method = "bonferroni") 
 
-
-#-------------------------------------------------------------------------------
-# Volume predictions for all for just mixtures 
-#-------------------------------------------------------------------------------
-#auc by each SPP in CODE
-auc.spp <- ca.avg.smooth %>%
-  group_by(CODE, SPP) %>%
-  summarise(auc = integrate(approxfun(prop, cr.points), min(prop), max(prop))$value, .groups = "drop")
-auc.spp
-
-# For significant mixtures (BN, NW, RW) auc was the sum of both SPP curves, for others the value is just the AUC for the dominant SPP 
-# Interval = the scale of for min-max of the prop range, used since AUC values are high
-strawberry <- data.frame(
-  CODE = c("BN", "NW", "RW", "BR", "BW", "NR"),
-  AUC = c(291, 371, 260, 281, 155, 230),
-  Interval = c(90, 90, 90, 90, 80, 90)
-) %>%
-  mutate(auc.adj = AUC / Interval)
-
-blueberry <- picea %>%
-  left_join(strawberry, by = "CODE") %>%
-  filter(CODE %in% c("BN", "BR", "BW", "NR", "NW", "RW"))
-
-# volume predictions for mixtures only 
-# we have pseudo rep since these are still at tree level
-blues <- blueberry%>%
-  group_by(BLOCK,PLOT,CODE)%>%
-  summarize(AUC=mean(AUC),
-            Interval=mean(Interval),
-            auc.adj = mean(auc.adj))
-
-plot.sums <-  picea%>%
-  mutate(ba = DBH.23^2*0.005454,
-         ef = 10,
-         tree.vol=mapply(vol.calc,SPP,DBH.23,final.ht),
-         c.area = (MCW/2)^2*pi)%>%
-  group_by(BLOCK,PLOT,CODE)%>%
-  summarize(bapa = sum(ba*ef),
-            tpa = sum(ef),
-            qmd = qmd(bapa,tpa),
-            rd=relative.density.index(bapa,qmd),
-            volume = sum(tree.vol*ef),
-            CCF=(sum(c.area*ef)/43560)*100,
-            LAI=mean(LAI))
-head(plot.sums)
-bl.ch <- left_join(blues,plot.sums)
-bl.c <- left_join(bl.ch,site)
-head(bl.c)
-
-require(leaps)
-modv <- regsubsets(volume~AUC+auc.adj+BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+LAI+CCF+
-                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
-                   WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
-                   data=bl.c)
-
-summary(modv)
-
-
-lm1 <- lm(volume~BS_Suitability+CCF+log(LAI),data=bl.c)
-
-library(MASS)
-b <- boxcox(lm(volume ~ 1,data=bl.c))
-# Exact lambda
-lambda <- b$x[which.max(b$y)]
-lambda
-
-plot(density((1/sqrt(bl.c$volume))))
-plot(density((bl.c$volume)))
-
-bl.c$vol.t <- 1/(sqrt(bl.c$volume))
-plot(density(bl.c$vol.t))
-
-lm2 <- lm(vol.t~BS_Suitability,data=bl.c)
-summary(lm2)
-
-lm3 <- lm(vol.t~factor(CODE),data=bl.c)
-AIC(lm2,lm3)
-# wow, that is crazy - I'll take the continuous variable please...
-
-lm4 <- lm(vol.t~BS_Suitability+CCF,data=bl.c) #best model
-summary(lm4)
-AIC(lm2,lm4)
-
-
-bl.c$fit.vol<- predict(lm4,bl.c)
-bl.c$b.vol<-(1/bl.c$fit.vol^2) #backtransforms so you have normal volume  acreestimates 
-plot(bl.c$b.vol,bl.c$b.volume)  
-abline(0,1)
-
-lm5 <- lme(vol.t~BS_Suitability+CCF,data=bl.c,
-           random=~1|BLOCK)
-summary(lm5)
-
-
-AIC(lm5,lm4)
-
-lm6 <- lm(vol.t~BS_Suitability+CCF*AUC,data=bl.c)
-summary(lm6)
-AIC(lm4, lm6)
-
-
-summary(lm1)
-plot(lm1)
-
-lm2 <- lm(volume~factor(CODE),data=bl.c)
-summary(lm2)
-
-AIC(lm1,lm2)
-
-xyplobl.cxyplot(volume~auc.adj|BLOCK,data=bl.ch)
-
-#require(devtools)
-#install_github("ProcessMiner/nlcor")
-#library(nlcor)
-
-c <- nlcor(bl.c$AUC,bl.c$LAI)
-
 #-------------------------------------------------------------------------------
 # Volume predictions for all treatments
 #-------------------------------------------------------------------------------
@@ -987,57 +877,66 @@ head(plot.summary)
 bl.t <- plot.summary%>%
   left_join(.,site)%>%
   mutate(baph = bapa/4.356,
-         tph = tpa*2.47)
+         tph = tpa*2.47,
+         qmd = qmd*2.54)
 head(bl.t)
-
-bl.t <- bl.t %>%
-  filter(CODE != "C")
 
 names(bl.t)
 
-
+require(MASS)
 b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
 # Exact lambda
 lambda <- b$x[which.max(b$y)]
-lambda
+lambda #lambda is now 1.353535 so box cox transformation is no longer needed
 
 library(fitdistrplus)
 library(agricolae)
+require(leaps)
 
 descdist(bl.t$volume.ha, boot = 1000)
 plot(density(bl.t$volume.ha))
 plot(density(exp(bl.t$volume.ha)))
 plot(density(sqrt(bl.t$volume.ha)))
-
-require(leaps)
-library(MASS)
-b <- boxcox(lm(volume.ha ~ 1,data=bl.t))
-# Exact lambda
-lambda <- b$x[which.max(b$y)]
-lambda
-
-plot(density((bl.t$volume.ha)))
-plot(density(sqrt(bl.t$volume.ha)))
 plot(density(log(bl.t$volume.ha)))
 
-bl.t$sq.vol <- sqrt(bl.t$volume.ha)
+#bl.t$sq.vol <- sqrt(bl.t$volume.ha)
 
-modz <- regsubsets(sq.vol~bapa+tpa+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+
-                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
-                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
+names(bl.t)
+modz <- regsubsets(volume.ha~baph+tph+qmd+rd+CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+                     elevation+tri+tpi+roughness+slope+aspect+flowdir+tmin+tmean+tmax+dew+vpdmax+vpdmin+McNab+Bolstad+
+                     Profile+Planform+Winds10+Winds50+SWI+RAD+ppt+Parent+WD2000+WHC+ex.mg+ex.ca+ex.k+ph+dep+nit+SWC2+
+                     NS.rd+WS.rd+BS.rd+RS.rd+NS.vol+WS.vol+RS.vol+BS.vol,
                    data=bl.t)
 summary(modz)
 
-modz2 <- regsubsets(sq.vol~CCF+LAI+BS_Suitability+WS_Suitability+RS_Suitability+
-                     tri+tpi+roughness+SWI+
-                     slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
-                     WD2000+SWC2+Winds10+Winds50+MeanWD+nit+ex.k+dep+ph,
-                   data=bl.t)
+modz2 <- regsubsets(volume.ha~LAI+BS_Suitability+WS_Suitability+RS_Suitability+
+                      elevation+tri+tpi+roughness+slope+aspect+flowdir+tmin+tmean+tmax+dew+vpdmax+vpdmin+McNab+Bolstad+
+                      Profile+Planform+Winds10+Winds50+SWI+RAD+ppt+Parent+WD2000+WHC+ex.mg+ex.ca+ex.k+ph+dep+nit+SWC2+
+                      NS.rd+WS.rd+BS.rd+RS.rd+NS.vol+WS.vol+RS.vol+BS.vol,
+                    data=bl.t)
 summary(modz2)
 
 #bapa + tpa + qmd + rd + CCF
 
+ocean <- lm(volume.ha~qmd+rd+McNab+Winds10+NS.rd+BS.rd, data=bl.t)
+summary(ocean)
+vif(ocean)
+AIC(ocean)
+
+lake <- lm(volume.ha~rd+dep*CODE, data=bl.t)
+summary(lake)  
+vif(lake)
+AIC(lake)
+
+river <- lm(volume.ha~rd+NS.rd+WS.rd*dep, data = bl.t)
+summary(river)
+vif(river)
+AIC(river)
+
+
+
+
+# old prior to rd proportions
 full.m1 <- lm(sq.vol~rd*CODE, data=bl.t) #LAI was significant prior to additional of structural and density attributes
 summary(full.m1)
 performance(full.m1)
@@ -1165,118 +1064,63 @@ ggplot(mydf2, aes(x = x, y = predicted, colour = group)) +
   )
 
 #-------------------------------------------------------------------------------
-# Overyielding & Transgressive Overyielding, looking at the plot level
+# OY & TOY
 #-------------------------------------------------------------------------------
-plot.estimates <- spruce %>%
-  group_by(BLOCK, PLOT, CODE) %>%
-  summarise(total.vol = sum(p.vol.ac, na.rm = TRUE) / 10,  
-            .groups = 'drop')
+# Overyielding
+# Volumes for mixture & monoculture counterparts
+mix <- c(120,93,73)
+mono1 <- c(107,89,106)
+mono2 <- c(79,84,82)
 
+mean.mix <- mean(mix)
+mean.mono1 <- mean(mono1)
+mean.mono2 <- mean(mono2)
+mean.mono.avg <- mean((mono1 + mono2) / 2)
 
+sd.mix <- sd(mix)
+sd.mono.avg <- sd((mono1 + mono2) / 2)
 
-# calculate overyielding at plot level
-# deduction volume
-oy <- function(data) {
-  results <- data.frame(Mixture = character(), Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (i in 1:nrow(data)) {
-    mixture <- as.character(data$CODE[i])  # make CODE a character
-    
-    if (nchar(mixture) == 2) { 
-      species1 <- substr(mixture, 1, 1)  
-      species2 <- substr(mixture, 2, 2)  
-      
-      volume1 <- data$total.vol[data$CODE == species1]
-      volume2 <- data$total.vol[data$CODE == species2]
-      
-      mixture.volume <- data$total.vol[i]
-      
-      if (length(volume1) > 0 && length(volume2) > 0) {
-        average.volume <- mean(c(volume1, volume2), na.rm = TRUE)
-        overyielding <- mixture.volume / average.volume
-        
-        results <- rbind(results, data.frame(Mixture = mixture, Overyielding = overyielding))
-      }
-    }
-  }
-  
-  return(results)
-}
+overyielding <- mean.mix / mean.mono.avg
 
-oy.results <- oy(plot.estimates)
-print(oy.results)
+print(overyielding)
+print(sd.mix)
+print(sd.mono.avg)
 
-avg.oy <- oy.results %>%
-  group_by(Mixture) %>%
-  summarise(
-    avg.oy = mean(Overyielding, na.rm = TRUE),
-    se.oy = sd(Overyielding, na.rm = TRUE) / sqrt(n()), 
-    .groups = 'drop'
-  )
-print(avg.oy)
+# combine data for ANOVA
+data <- c(mix, (mono1 + mono2) / 2)
+group <- factor(rep(c("mix", "mono avg"), each = length(mix)))
 
-ggplot(avg.oy, aes(x = Mixture, y = avg.oy)) +
-  geom_bar(stat = "identity", fill = "grey") +  
-  geom_errorbar(aes(ymin = avg.oy - se.oy, ymax = avg.oy + se.oy), width = 0.2) +  
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", y = NULL) +  
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))
+# perform 1-way ANOVA
+anova_result <- aov(data ~ group)
+summary(anova_result)
 
+# Transgressive Overyielding
 
-# calculate transgressive overyielding
-calculate_transgressive_overyielding <- function(data) {
-  results <- data.frame(Mixture = character(), Transgressive_Overyielding = numeric(), stringsAsFactors = FALSE)
-  
-  for (i in 1:nrow(data)) {
-    mixture <- as.character(data$CODE[i]) 
-    
-    if (nchar(mixture) == 2) {
-      species1 <- substr(mixture, 1, 1)
-      species2 <- substr(mixture, 2, 2)
-      
-      volume1 <- data$total.vol[data$CODE == species1]  
-      volume2 <- data$total.vol[data$CODE == species2]  
-      
-      mixture_volume <- data$total.vol[i]  
-      
-      if (length(volume1) > 0 && length(volume2) > 0) {
-        max_volume <- max(c(volume1, volume2), na.rm = TRUE)  
-        
-        if (!is.na(max_volume) && max_volume > 0) {  
-          transgressive_overyielding <- mixture_volume / max_volume
-          results <- rbind(results, data.frame(Mixture = mixture, Transgressive_Overyielding = transgressive_overyielding))
-        }
-      }
-    }
-  }
-  
-  return(results)
-}
+# Mixture (e.g., BR) and best monoculture (e.g., B)
+mix <- c(70,67,71)            
+bestmono <- c(82,84,79)
 
-toy_results <- calculate_transgressive_overyielding(plot.estimates)
-print(toy_results)  
+mean.mix <- mean(mix)
+mean.bestmono <- mean(bestmono)
 
-avg_toy <- toy_results %>%
-  group_by(Mixture) %>%
-  summarise(
-    avg_transgressive_oy = mean(Transgressive_Overyielding, na.rm = TRUE),
-    se_transgressive_oy = sd(Transgressive_Overyielding, na.rm = TRUE) / sqrt(n())
-  )
+sd.mix <- sd(mix)
+sd.bestmono <- sd(bestmono)
 
-print(avg_toy)  
+toy <- mean.mix / mean.bestmono
 
-ggplot(avg_toy, aes(x = Mixture, y = avg_transgressive_oy)) +
-  geom_bar(stat = "identity", fill = "grey") +  
-  geom_errorbar(aes(ymin = avg_transgressive_oy - se_transgressive_oy, 
-                    ymax = avg_transgressive_oy + se_transgressive_oy), 
-                width = 0.2) +  # Add error bars
-  geom_hline(yintercept = 1, linetype = "dashed", color = "red") +  
-  labs(x = "Species Mixture", y = NULL) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
-  scale_y_continuous(breaks = c(1))
+print(mean.mix)
+print(mean.bestmono)
+print(sd.mix)
+print(sd.mono)
+print(toy)
+
+# combine data
+data <- c(mix, bestmono)
+group <- factor(c(rep("Mixture", length(mix)), rep("BestMono", length(bestmono))))
+
+# perform 1-way ANOVA
+anova_result <- aov(data ~ group)
+summary(anova_result)
 
 #-------------------------------------------------------------------------------
 # Multiple Comparisons Test of Stand Level Metrics
