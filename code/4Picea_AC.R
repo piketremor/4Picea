@@ -973,12 +973,36 @@ summary(lake)
 vif(lake)
 AIC(lake)
 
-river <- lm(volume.ha~rd+NS.rd+WS.rd*dep, data = bl.t)
+river <- lm(volume.ha~rd+NS.rd+dep, data = bl.t)
 summary(river)
 vif(river)
-AIC(river)
+performance(river)
+
+pond <- lme(volume.ha~rd+NS.rd+dep, 
+            random=~1|BLOCK,
+            data=bl.t)
+
+summary(pond)
+performance(pond)
 
 
+testmod<-lme(volume.ha~CODE,
+             random=~1|BLOCK,
+             data=bl.t)
+
+summary(testmod)
+performance(testmod)
+
+
+bl.t$fit.vol<-predict(pond,bl.t,levels=1)
+plot(bl.t$fit.vol,bl.t$volume.ha)
+
+f1<-lme(fit.vol~CODE, 
+        random=~1|BLOCK,
+        data=bl.t)
+f1
+t1<-aov(f1)
+LSD.test(f1,p.adj = "bon",trt = "CODE")
 
 
 # old prior to rd proportions
@@ -2282,3 +2306,6 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
                 Ek=expected.counts,ChiSqk=chisq.term)
 
 #spp, dbh, htl
+
+
+
