@@ -1,7 +1,7 @@
 #install.packages("devtools")
 #install.packages("G:/My Drive/MEForLab",
-                 #repos = NULL,
-                 #type = "source")
+#                 repos = NULL,
+#                 type = "source")
 #devtools::install_github("piketremor/MEForLab")
 
 dev.off()
@@ -17,7 +17,8 @@ library(lme4)
 library(performance)
 library(ggplot2)
 
-setwd("C:/Users/ashley.lynn.carter/Documents/GitHub/4Picea/code/raw")
+
+#setwd("C:/Home/Documents/GitHub/4Picea/code/raw")
 
 setwd("G:/Shared drives/4Picea/4Picea/raw")
 setwd("~/Documents/GitHub/4Picea/code/raw")
@@ -279,6 +280,33 @@ xyplot(final.ht ~ DBH.23 | SPP,
 # dealing with outliers in the ht.mod predictions by SPP
 # ended up just manually removing the ht from 2 outlier RS stems
 
+
+#-------------------------------------------------------------------------------
+# HDR - (tree level)
+#-------------------------------------------------------------------------------
+hdr <- picea %>%
+  mutate(
+    DBH.23.m = DBH.23 * 0.0254, #convert DBH.23 from inches to meters
+    final.ht.m = final.ht * 0.3048, #convert final.ht from ft to meters
+    HDR = final.ht.m / DBH.23.m
+  ) %>%
+  filter(is.finite(HDR)) %>%
+  group_by(CODE, BLOCK, PLOT, SPP) %>%
+  summarise(
+    mean_HDR_replicate = mean(HDR, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  group_by(CODE, SPP) %>%
+  summarise(
+    mean_HDR = mean(mean_HDR_replicate, na.rm = TRUE),
+    sd_HDR   = sd(mean_HDR_replicate, na.rm = TRUE),
+    min_HDR  = min(mean_HDR_replicate, na.rm = TRUE),
+    max_HDR  = max(mean_HDR_replicate, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+print(hdr, n = Inf)
+
 #-------------------------------------------------------------------------------
 # Basal area larger (bal) - (tree level)
 #-------------------------------------------------------------------------------
@@ -478,7 +506,7 @@ xyplot(qmd~tpa|CODE,data=picea)
 # Kozak volume calculation at the individual tree level (ft3)
 #-------------------------------------------------------------------------------
 require(devtools)
-#devtools::install("C:/Users/ashley.lynn.carter/Documents/GitHub/GreenTimbMerch")
+devtools::install("C:/Users/ashley.lynn.carter/Documents/GitHub/GreenTimbMerch")
 require(GreenTimbMerch)
 
 picea$dbh.cm <- picea$DBH.23*2.54
@@ -2306,6 +2334,34 @@ df0<-data.frame(k=c(1:length(obs.counts)),Ok=obs.counts,
                 Ek=expected.counts,ChiSqk=chisq.term)
 
 #spp, dbh, htl
+
+#-------------------------------------------------------------------------------
+# weevil damage
+#-------------------------------------------------------------------------------
+christmas <- picea %>%
+  filter(SPP == "NS")
+
+# Reshape DAM1, DAM2, DAM3 into long format
+newyears <- christmas %>%
+  pivot_longer(cols = c(DAM1, DAM2, DAM3), names_to = "DAM_num", values_to = "DAM_value") %>%
+  filter(DAM_value %in% c("FK/WV", "WV"))
+
+# Each row now represents one tree with DAM_value == FK/WV or WV
+# Count by BLOCK, PLOT, and CODE
+thanksgiving <- newyears %>%
+  group_by(BLOCK, PLOT, CODE) %>%
+  summarise(n_trees = n(), .groups = "drop")
+
+thanksgiving
+
+
+# Summarize average number of damaged trees per CODE across BLOCK and PLOT
+avg_by_code <- thanksgiving %>%
+  group_by(CODE) %>%
+  summarise(avg_n_trees = mean(n_trees), .groups = "drop")
+
+# View the result
+print(avg_by_code)
 
 
 
