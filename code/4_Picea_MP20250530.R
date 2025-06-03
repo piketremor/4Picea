@@ -26,6 +26,9 @@ picea <- read.csv("4Picea.csv")
 picea <- distinct(picea)
 stemform <- read.csv("StemForm.csv")
 stemform <- distinct(stemform)
+stemform <- stemform %>%
+  mutate(TREE = as.character(TREE)) %>%
+  distinct(BLOCK, PLOT, TREE, .keep_all = TRUE)
 site <- read.csv("4Picea_30m.csv")
 site <- distinct(site)
 site$uid <- paste0(site$BLOCK,".",site$PLOT)
@@ -83,6 +86,7 @@ hcb1 <- lm(HCB.23~DBH.23+HT.23+hdr+log(ccf+.1)+SPP,
            data=tfn,na.action=na.exclude)
 
 summary(hcb1)
+performance(hcb1)
 
 tfn$X <- predict(hcb1,tfn)
 
@@ -172,6 +176,7 @@ print(lambda)
 fd <- dplyr::filter(fd,CODE!="C")
 fd[is.na(fd)] <- 0
 
+require(leaps)
 modv <- regsubsets(vol.ha~BS_Suitability+WS_Suitability+RS_Suitability+
                      tri+tpi+roughness+SWI+LAI+CCF+rd+
                      slope+aspect+flowdir+RAD+Winds10+SWI+tmean+ppt+
@@ -199,7 +204,15 @@ boxplot(vol.ha~CODE,data=fd)
 boxplot(vol.fit~CODE,data=fd)
 summary(mod2)
 
+MB <- mean(residuals(mod2))
+print(paste("Mean Bias (MB):", MB))
+
+MAB <- mean(abs(residuals(mod2)))
+print(paste("Mean Absolute Bias (MAB):", MAB))
+
 performance(mod2)
+
+
 # now for overyielding/transgressive overyielding
 
 # overyielding is if the mixture is greater than the weighted average of the best......
@@ -254,9 +267,7 @@ summary(t1)
 
 plot(t1)
 performance(t1)
-# BN is the only one that over yields, though BR almost does at p = 0.06
-
-
+# BN is the only one that over yields, though NR almost does at p = 0.06
 
 pure <- dplyr::filter(blocker,CODE=="B"|CODE=="R"|CODE=="W"|CODE=="N")%>%
   rename(pure.vol=mean.block.vol)
@@ -285,7 +296,6 @@ summary(toy.1)
 plot(toy.1)
 
 
-
 library(ggplot2)
 library(ggeffects)
 mydf2 <- ggpredict(mod2,terms=c("rd","dep","NS.rd"),
@@ -310,3 +320,42 @@ ggplot(mydf2,aes(x=x,y=predicted,colour=group))+
 #scale_y_continuous(trans="sq")
 #scale_color_manual(values=c('gray0','gray70','gray40'))+
 #scale_fill_manual(values=c('gray0','gray70','gray40'), name="fill")
+
+#-------------------------------------------------------------------------------
+# weevil damage
+#-------------------------------------------------------------------------------
+# filter for just NS stems and CODEs N, BN, NR, NW
+christmas <- picea %>%
+  filter(SPP == "NS", CODE %in% c("N", "NW", "NR", "BN"))
+
+# reshape DAM1, DAM2, DAM3 into long format
+newyears <- christmas %>%
+  pivot_longer(cols = c(DAM1, DAM2, DAM3), names_to = "DAM_num", values_to = "DAM_value") %>%
+  filter(DAM_value %in% c("FK/WV", "WV"))
+
+# Each row now represents one tree with DAM_value == FK/WV or WV
+
+weevil <- newyears %>%
+  group_by(CODE, BLOCK, PLOT, SPP) %>%
+  summarise(n_trees = n(), .groups = "drop") %>%
+  mutate(
+    weevil_percent = as.factor(n_trees / 10),
+    n_trees_per_hectare = n_trees * 10 * 2.47
+  )
+
+weevil$BLOCK <- as.factor(weevil$BLOCK)
+
+
+w1 <- lm(weevil_percent ~ CODE,
+         random=~1|BLOCK,
+         data = weevil)
+
+summary(w1)
+
+library(emmeans)
+emm <- emmeans(w1, ~ CODE)
+pairs(emm, adjust = "tukey")
+
+library(multcomp)
+library(multcompView)
+cld(emm, Letters = letters)
