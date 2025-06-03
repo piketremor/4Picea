@@ -1119,6 +1119,47 @@ bl.t %>%
     #plot.title = element_text(hjust = 0.5)
   #)
 
+
+#-------------------------------------------------------------------------------
+# weevil damage
+#-------------------------------------------------------------------------------
+# filter for just NS stems and CODEs N, BN, NR, NW
+christmas <- picea %>%
+  filter(SPP == "NS", CODE %in% c("N", "NW", "NR", "BN"))
+
+# reshape DAM1, DAM2, DAM3 into long format
+newyears <- christmas %>%
+  pivot_longer(cols = c(DAM1, DAM2, DAM3), names_to = "DAM_num", values_to = "DAM_value") %>%
+  filter(DAM_value %in% c("FK/WV", "WV"))
+
+# Each row now represents one tree with DAM_value == FK/WV or WV
+
+weevil <- newyears %>%
+  group_by(CODE, BLOCK, PLOT, SPP) %>%
+  summarise(n_trees = n(), .groups = "drop") %>%
+  mutate(
+    weevil_percent = as.factor(n_trees / 10),
+    n_trees_per_hectare = n_trees * 10 * 2.47
+  )
+
+weevil$BLOCK <- as.factor(weevil$BLOCK)
+
+
+w1 <- lm(weevil_percent ~ CODE,
+         random=~1|BLOCK,
+         data = weevil)
+
+summary(w1)
+
+library(emmeans)
+emm <- emmeans(w1, ~ CODE)
+pairs(emm, adjust = "tukey")
+
+library(multcomp)
+library(multcompView)
+cld(emm, Letters = letters)
+
+
 #-------------------------------------------------------------------------------
 # OY & TOY
 #-------------------------------------------------------------------------------
@@ -1713,34 +1754,6 @@ dmod <- lm(Scale ~ SPP, data = ss.ht.df[ss.ht.df$CODE == "RW", ])
 scale.glht <- glht(dmod, linfct = mcp(SPP = "Tukey"))
 summary(scale.glht)
 
-#-------------------------------------------------------------------------------
-# weevil damage
-#-------------------------------------------------------------------------------
-# filter for just NS stems and CODEs N, BN, NR, NW
-christmas <- picea %>%
-  filter(SPP == "NS", CODE %in% c("N", "NW", "NR", "BN"))
-
-# eeshape DAM1, DAM2, DAM3 into long format
-newyears <- christmas %>%
-  pivot_longer(cols = c(DAM1, DAM2, DAM3), names_to = "DAM_num", values_to = "DAM_value") %>%
-  filter(DAM_value %in% c("FK/WV", "WV"))
-
-# Each row now represents one tree with DAM_value == FK/WV or WV
-# Count by BLOCK, PLOT, and CODE
-weevil<- newyears %>%
-  group_by(CODE, BLOCK, PLOT, SPP) %>%
-  summarise(n_trees = n(), .groups = "drop")
-
-w1 <- lm(n_trees ~ CODE, data = weevil)
-summary(w1)
-
-library(emmeans)
-emm <- emmeans(w1, ~ CODE)
-pairs(emm, adjust = "tukey")
-
-library(multcomp)
-library(multcompView)
-cld(emm, Letters = letters)
 
 
 
