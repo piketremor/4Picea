@@ -1143,9 +1143,10 @@ weevil <- newyears %>%
   )
 
 weevil$BLOCK <- as.factor(weevil$BLOCK)
+str(weevil) # notice that you have weevil_percent coded as a factor, change here
+weevil$weevil_percent <- as.numeric(weevil$weevil_percent)
 
-
-w1 <- lm(weevil_percent ~ CODE,
+w1 <- lme(weevil_percent ~ CODE,
          random=~1|BLOCK,
          data = weevil)
 
@@ -1154,6 +1155,9 @@ summary(w1)
 library(emmeans)
 emm <- emmeans(w1, ~ CODE)
 pairs(emm, adjust = "tukey")
+
+
+# patched. June 4 2025
 
 library(multcomp)
 library(multcompView)
